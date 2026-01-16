@@ -4,13 +4,12 @@ WORKDIR /app
 
 # Copy go mod files
 COPY go.mod go.sum* ./
-RUN go mod download
 
 # Copy source
 COPY . .
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /rate-limiter cmd/server/main.go
+# Download dependencies and build
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o /rate-limiter cmd/server/main.go
 
 # Runtime
 FROM alpine:3.19

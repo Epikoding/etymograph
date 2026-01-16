@@ -15,22 +15,18 @@ interface WordGraphProps {
   onNodeClick?: (node: GraphNode) => void;
 }
 
-interface GraphData {
-  nodes: Array<{
-    id: string;
-    word: string;
-    etymology: GraphNode['etymology'];
-    order: number;
-    val: number;
-  }>;
-  links: Array<{
-    source: string;
-    target: string;
-  }>;
+interface InternalNode {
+  id: string;
+  word: string;
+  etymology: GraphNode['etymology'];
+  order: number;
+  val: number;
+  x?: number;
+  y?: number;
 }
 
 export default function WordGraph({ nodes, edges, onNodeClick }: WordGraphProps) {
-  const graphData: GraphData = useMemo(() => ({
+  const graphData = useMemo(() => ({
     nodes: nodes.map((node) => ({
       id: node.id,
       word: node.word,
@@ -45,7 +41,8 @@ export default function WordGraph({ nodes, edges, onNodeClick }: WordGraphProps)
   }), [nodes, edges]);
 
   const handleNodeClick = useCallback(
-    (node: GraphData['nodes'][0]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (node: any) => {
       if (onNodeClick) {
         onNodeClick({
           id: node.id,
@@ -58,7 +55,8 @@ export default function WordGraph({ nodes, edges, onNodeClick }: WordGraphProps)
     [onNodeClick]
   );
 
-  const nodeLabel = useCallback((node: GraphData['nodes'][0]) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nodeLabel = useCallback((node: any) => {
     const etymology = node.etymology;
     if (etymology?.origin) {
       return `${node.word}\n(${etymology.origin.language}: ${etymology.origin.root})`;
@@ -66,7 +64,8 @@ export default function WordGraph({ nodes, edges, onNodeClick }: WordGraphProps)
     return node.word;
   }, []);
 
-  const nodeColor = useCallback((node: GraphData['nodes'][0]) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nodeColor = useCallback((node: any) => {
     const language = node.etymology?.origin?.language?.toLowerCase();
     const colors: Record<string, string> = {
       latin: '#e11d48',
@@ -98,8 +97,9 @@ export default function WordGraph({ nodes, edges, onNodeClick }: WordGraphProps)
         linkDirectionalArrowLength={6}
         linkDirectionalArrowRelPos={1}
         onNodeClick={handleNodeClick}
-        nodeCanvasObject={(node, ctx, globalScale) => {
-          const label = (node as GraphData['nodes'][0]).word;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        nodeCanvasObject={(node: any, ctx, globalScale) => {
+          const label = node.word || '';
           const fontSize = 14 / globalScale;
           ctx.font = `${fontSize}px Sans-Serif`;
           ctx.textAlign = 'center';

@@ -1,19 +1,16 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { Loader2, ArrowLeft, Download } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Session, SessionGraph } from '@/types/word';
 import EtymologyCard from '@/components/EtymologyCard';
 import WordGraph from '@/components/WordGraph';
 
-interface PageProps {
-  params: Promise<{ word: string }>;
-}
-
-export default function ExplorePage({ params }: PageProps) {
-  const { word } = use(params);
+export default function ExplorePage() {
+  const params = useParams();
+  const word = params.word as string;
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [graph, setGraph] = useState<SessionGraph['graph'] | null>(null);
@@ -22,6 +19,8 @@ export default function ExplorePage({ params }: PageProps) {
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!word) return;
+
     const initSession = async () => {
       try {
         // Create a new session

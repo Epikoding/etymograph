@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ COPY go.mod go.sum* ./
 COPY . .
 
 # Download dependencies and build
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o /llm-proxy cmd/server/main.go
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o /api cmd/server/main.go
 
 # Runtime
 FROM alpine:3.19
@@ -18,8 +18,8 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-COPY --from=builder /llm-proxy .
+COPY --from=builder /api .
 
-EXPOSE 8081
+EXPOSE 4000
 
-CMD ["./llm-proxy"]
+CMD ["./api"]

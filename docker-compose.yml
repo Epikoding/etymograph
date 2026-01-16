@@ -14,15 +14,16 @@ services:
 
   api:
     build:
-      context: ./api
+      context: ./api-go
       dockerfile: Dockerfile
     ports:
       - "4000:4000"
     environment:
-      - DATABASE_URL=postgresql://etymograph:etymograph@postgres:5432/etymograph
+      - DATABASE_URL=postgres://etymograph:etymograph@postgres:5432/etymograph?sslmode=disable
       - REDIS_URL=redis://redis:6379
       - LLM_PROXY_URL=http://llm-proxy:8081
-      - RATE_LIMITER_URL=http://rate-limiter:8080
+      - RATE_LIMIT_URL=http://rate-limiter:8080
+      - PORT=4000
     depends_on:
       postgres:
         condition: service_healthy
