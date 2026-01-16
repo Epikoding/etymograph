@@ -12,27 +12,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="antialiased">
-        <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-          <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+    <html lang="en" className="dark">
+      <body className="antialiased bg-slate-950 text-slate-100">
+        <div className="min-h-screen">
+          <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex justify-between items-center h-16">
                 <a href="/" className="flex items-center space-x-2">
-                  <span className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
+                  <span className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
                     EtymoGraph
                   </span>
                 </a>
                 <nav className="flex space-x-6">
                   <a
                     href="/"
-                    className="text-gray-600 hover:text-primary-600 transition-colors"
+                    className="text-slate-400 hover:text-white transition-colors"
                   >
-                    Search
+                    Explore
                   </a>
                   <a
                     href="/history"
-                    className="text-gray-600 hover:text-primary-600 transition-colors"
+                    className="text-slate-400 hover:text-white transition-colors"
                   >
                     History
                   </a>

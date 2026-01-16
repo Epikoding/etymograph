@@ -1,168 +1,113 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Loader2, ArrowRight } from 'lucide-react';
-import { api } from '@/lib/api';
-import type { Word } from '@/types/word';
-import EtymologyCard from '@/components/EtymologyCard';
-import DerivativeList from '@/components/DerivativeList';
-import SynonymCompare from '@/components/SynonymCompare';
+import { Search, Loader2 } from 'lucide-react';
+import EtymologyGraph from '@/components/EtymologyGraph';
 
 export default function Home() {
   const [query, setQuery] = useState('');
+  const [searchedWord, setSearchedWord] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<Word | null>(null);
-  const [activeTab, setActiveTab] = useState<'etymology' | 'derivatives' | 'synonyms'>('etymology');
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const word = await api.searchWord(query.trim());
-      setResult(word);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Search failed');
-      setResult(null);
-    } finally {
-      setLoading(false);
-    }
+    setSearchedWord(query.trim().toLowerCase());
   };
 
-  const handleExploreWord = (word: string) => {
+  const handleWordSelect = (word: string) => {
     setQuery(word);
-    // Auto-search
-    setLoading(true);
-    setError(null);
-    api.searchWord(word)
-      .then(setResult)
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Search failed');
-        setResult(null);
-      })
-      .finally(() => setLoading(false));
+  };
+
+  const handleExampleClick = (word: string) => {
+    setQuery(word);
+    setSearchedWord(word);
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12">
-      {/* Hero Section */}
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Discover Word Origins
-        </h1>
-        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Explore the etymology of English words, find related derivatives,
-          and understand nuanced differences between synonyms.
-        </p>
-      </div>
-
-      {/* Search Form */}
-      <form onSubmit={handleSearch} className="mb-8">
-        <div className="relative">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Enter a word to explore..."
-            className="w-full px-6 py-4 text-lg border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors"
-          />
-          <button
-            type="submit"
-            disabled={loading || !query.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Search className="w-5 h-5" />
-            )}
-            Search
-          </button>
-        </div>
-      </form>
-
-      {/* Error Message */}
-      {error && (
-        <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* Results */}
-      {result && (
-        <div className="space-y-6">
-          {/* Word Title */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-3xl font-bold text-gray-900 capitalize">
-              {result.word}
-            </h2>
-            {result.etymology?.modernMeaning && (
-              <p className="mt-2 text-gray-600">{result.etymology.modernMeaning}</p>
-            )}
+    <div className="flex flex-col h-[calc(100vh-64px)]">
+      {/* Search Header */}
+      <div className="flex-shrink-0 px-6 py-4 bg-slate-900 border-b border-slate-800">
+        <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
+          <div className="relative">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Enter a word to explore its origins..."
+              className="w-full px-5 py-3 pl-12 text-white bg-slate-800 border border-slate-700 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-colors placeholder-slate-500"
+            />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <button
+              type="submit"
+              disabled={loading || !query.trim()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                'Explore'
+              )}
+            </button>
           </div>
+        </form>
 
-          {/* Tabs */}
-          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-            {(['etymology', 'derivatives', 'synonyms'] as const).map((tab) => (
+        {/* Example words */}
+        {!searchedWord && (
+          <div className="flex items-center justify-center gap-2 mt-3 text-sm">
+            <span className="text-slate-500">Try:</span>
+            {['pretext', 'philosophy', 'manuscript', 'telegram'].map((word) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === tab
-                    ? 'bg-white text-primary-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                key={word}
+                onClick={() => handleExampleClick(word)}
+                className="px-3 py-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors"
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {word}
               </button>
             ))}
           </div>
+        )}
+      </div>
 
-          {/* Tab Content */}
-          <div className="bg-white rounded-xl shadow-sm border">
-            {activeTab === 'etymology' && (
-              <EtymologyCard etymology={result.etymology} />
-            )}
-            {activeTab === 'derivatives' && (
-              <DerivativeList
-                word={result.word}
-                onExplore={handleExploreWord}
-              />
-            )}
-            {activeTab === 'synonyms' && (
-              <SynonymCompare
-                word={result.word}
-                onExplore={handleExploreWord}
-              />
-            )}
+      {/* Graph View */}
+      <div className="flex-1 relative">
+        {searchedWord ? (
+          <EtymologyGraph
+            initialWord={searchedWord}
+            onWordSelect={handleWordSelect}
+          />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
+            <div className="text-center max-w-md">
+              <h1 className="text-3xl font-bold text-white mb-3">
+                EtymoGraph
+              </h1>
+              <p className="text-slate-400 mb-6">
+                Explore word origins visually. Search a word to see its etymology,
+                components, and derivatives in an interactive graph.
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 rounded-full text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                  <span className="text-slate-300">Words</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 rounded-full text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                  <span className="text-slate-300">Components</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 rounded-full text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-500" />
+                  <span className="text-slate-300">Derivatives</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 rounded-full text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <span className="text-slate-300">Roots</span>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Example Words */}
-      {!result && !loading && (
-        <div className="text-center mt-12">
-          <p className="text-gray-500 mb-4">Try exploring these words:</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            {['pretext', 'etymology', 'philosophy', 'manuscript', 'telegram'].map(
-              (word) => (
-                <button
-                  key={word}
-                  onClick={() => handleExploreWord(word)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-primary-50 hover:text-primary-600 rounded-full text-gray-700 transition-colors flex items-center gap-1"
-                >
-                  {word}
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              )
-            )}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
