@@ -10,6 +10,7 @@ import (
 	"github.com/etymograph/api/internal/config"
 	"github.com/etymograph/api/internal/model"
 	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -145,8 +146,8 @@ func (h *WordHandler) GetDerivatives(c *gin.Context) {
 	}
 
 	if result.Error == nil {
-		// Update existing word
-		h.db.Model(&word).Update("derivatives", derivatives)
+		// Update existing word using raw SQL for array type
+		h.db.Exec("UPDATE words SET derivatives = ?, updated_at = NOW() WHERE id = ?", pq.Array(derivatives), word.ID)
 		word.Derivatives = derivatives
 	} else {
 		// Create new word
