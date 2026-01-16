@@ -95,6 +95,7 @@ const KOREAN_MEANINGS: Record<string, string> = {
 };
 
 function getKoreanMeaning(meaning: string): string {
+  if (!meaning) return '';
   // Direct match
   if (KOREAN_MEANINGS[meaning.toLowerCase()]) {
     return KOREAN_MEANINGS[meaning.toLowerCase()];
@@ -112,7 +113,7 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [links, setLinks] = useState<GraphLink[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const loadedWordsRef = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -139,7 +140,7 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
     setNodes([]);
     setLinks([]);
     loadedWordsRef.current = new Set();
-    setSelectedNode(null);
+    setHoveredNode(null);
 
     const timer = setTimeout(() => {
       loadWord(initialWord);
@@ -160,38 +161,22 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
       const newNodes: GraphNode[] = [];
       const newLinks: GraphLink[] = [];
 
+      // Main word node
       const wordNodeId = `word-${word}`;
       newNodes.push({
         id: wordNodeId,
         label: word,
         type: 'word',
         meaning: etymology?.modernMeaning,
+        meaningKo: getKoreanMeaning(etymology?.modernMeaning || ''),
         color: COLORS.word,
         size: 14,
       });
 
-      if (etymology?.origin?.components) {
-        etymology.origin.components.forEach((comp: { part: string; meaning: string }) => {
-          const compId = `comp-${word}-${comp.part}`;
-          const langColor = COLORS[etymology.origin.language.toLowerCase() as keyof typeof COLORS] || COLORS.component;
-          const koreanMeaning = getKoreanMeaning(comp.meaning);
+      if (etymology?.origin) {
+        const langColor = COLORS[etymology.origin.language?.toLowerCase() as keyof typeof COLORS] || COLORS.component;
 
-          newNodes.push({
-            id: compId,
-            label: comp.part,
-            type: 'component',
-            meaning: comp.meaning,
-            meaningKo: koreanMeaning,
-            language: etymology.origin.language,
-            color: langColor,
-            size: 10,
-          });
-          newLinks.push({
-            source: wordNodeId,
-            target: compId,
-          });
-        });
-
+        // Root node (e.g., praetextum) - word comes FROM root
         if (etymology.origin.root) {
           const rootId = `root-${word}-${etymology.origin.root}`;
           newNodes.push({
@@ -199,13 +184,60 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
             label: etymology.origin.root,
             type: 'root',
             meaning: etymology.originalMeaning,
+            meaningKo: getKoreanMeaning(etymology.originalMeaning || ''),
             language: etymology.origin.language,
             color: COLORS.root,
             size: 12,
           });
+          // Link: word ← root (word comes from root)
           newLinks.push({
             source: wordNodeId,
             target: rootId,
+          });
+
+          // Components branch from root (e.g., praetextum → prae- + textum)
+          if (etymology.origin.components) {
+            etymology.origin.components.forEach((comp: { part: string; meaning: string }) => {
+              const compId = `comp-${word}-${comp.part}`;
+              const koreanMeaning = getKoreanMeaning(comp.meaning);
+
+              newNodes.push({
+                id: compId,
+                label: comp.part,
+                type: 'component',
+                meaning: comp.meaning,
+                meaningKo: koreanMeaning,
+                language: etymology.origin.language,
+                color: langColor,
+                size: 10,
+              });
+              // Link: root → component (root breaks into components)
+              newLinks.push({
+                source: rootId,
+                target: compId,
+              });
+            });
+          }
+        } else if (etymology.origin.components) {
+          // No root, components connect directly to word
+          etymology.origin.components.forEach((comp: { part: string; meaning: string }) => {
+            const compId = `comp-${word}-${comp.part}`;
+            const koreanMeaning = getKoreanMeaning(comp.meaning);
+
+            newNodes.push({
+              id: compId,
+              label: comp.part,
+              type: 'component',
+              meaning: comp.meaning,
+              meaningKo: koreanMeaning,
+              language: etymology.origin.language,
+              color: langColor,
+              size: 10,
+            });
+            newLinks.push({
+              source: wordNodeId,
+              target: compId,
+            });
           });
         }
       }
@@ -257,10 +289,7 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
   };
 
   const handleNodeClick = useCallback((node: any) => {
-    setSelectedNode(node);
-
     if (node.type === 'component') {
-      // Use the label directly for derivative lookup
       const word = node.label.replace(/[-–—]/g, '').toLowerCase();
       if (word.length > 1) {
         loadDerivatives(node.id, word);
@@ -269,7 +298,6 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
       loadWord(node.label);
       onWordSelect?.(node.label);
     } else if (node.type === 'root') {
-      // Root can also expand to derivatives
       const word = node.label.replace(/[-–—]/g, '').toLowerCase();
       if (word.length > 1) {
         loadDerivatives(node.id, word);
@@ -285,14 +313,15 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
 
     const label = node.label || '';
     const fontSize = Math.max(12 / globalScale, 4);
-    const smallFontSize = Math.max(10 / globalScale, 3);
+    const smallFontSize = Math.max(9 / globalScale, 3);
     const nodeSize = node.size || 8;
+    const isHovered = hoveredNode?.id === node.id;
 
-    // Glow effect
+    // Glow effect (stronger when hovered)
     ctx.beginPath();
-    ctx.arc(node.x, node.y, nodeSize + 4, 0, 2 * Math.PI);
-    const gradient = ctx.createRadialGradient(node.x, node.y, nodeSize, node.x, node.y, nodeSize + 10);
-    gradient.addColorStop(0, node.color + '60');
+    ctx.arc(node.x, node.y, nodeSize + (isHovered ? 6 : 4), 0, 2 * Math.PI);
+    const gradient = ctx.createRadialGradient(node.x, node.y, nodeSize, node.x, node.y, nodeSize + (isHovered ? 15 : 10));
+    gradient.addColorStop(0, node.color + (isHovered ? '80' : '60'));
     gradient.addColorStop(1, 'transparent');
     ctx.fillStyle = gradient;
     ctx.fill();
@@ -303,27 +332,40 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
     ctx.fillStyle = node.color || '#6366f1';
     ctx.fill();
 
-    // Selected border
-    if (selectedNode?.id === node.id) {
+    // Hovered border
+    if (isHovered) {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
 
-    // Label
+    // Label (node name)
     ctx.font = `${node.type === 'word' ? 'bold ' : ''}${fontSize}px Inter, system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillStyle = '#e2e8f0';
     ctx.fillText(label, node.x, node.y + nodeSize + 4);
 
-    // Korean meaning for component nodes
-    if (node.meaningKo && node.type === 'component') {
+    // Meaning text below label (for all nodes with meaning)
+    let yOffset = node.y + nodeSize + fontSize + 6;
+
+    if (node.meaningKo) {
       ctx.font = `${smallFontSize}px Inter, system-ui, sans-serif`;
       ctx.fillStyle = '#94a3b8';
-      ctx.fillText(node.meaningKo, node.x, node.y + nodeSize + fontSize + 6);
+      ctx.fillText(node.meaningKo, node.x, yOffset);
+      yOffset += smallFontSize + 2;
+    } else if (node.meaning) {
+      // Show English meaning if no Korean available
+      ctx.font = `${smallFontSize}px Inter, system-ui, sans-serif`;
+      ctx.fillStyle = '#94a3b8';
+      // Truncate long meanings
+      const maxLen = 20;
+      const displayMeaning = node.meaning.length > maxLen
+        ? node.meaning.substring(0, maxLen) + '...'
+        : node.meaning;
+      ctx.fillText(displayMeaning, node.x, yOffset);
     }
-  }, [selectedNode]);
+  }, [hoveredNode]);
 
   return (
     <div ref={containerRef} className="relative w-full h-full min-h-[600px] bg-slate-900 rounded-xl overflow-hidden">
@@ -341,6 +383,10 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
           <span className="text-slate-300">단어</span>
         </div>
         <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.root }} />
+          <span className="text-slate-300">어근</span>
+        </div>
+        <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.latin }} />
           <span className="text-slate-300">어원</span>
         </div>
@@ -348,32 +394,7 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.derivative }} />
           <span className="text-slate-300">파생어</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.root }} />
-          <span className="text-slate-300">어근</span>
-        </div>
       </div>
-
-      {/* Selected node info */}
-      {selectedNode && (
-        <div className="absolute top-4 left-4 z-10 max-w-sm px-4 py-3 bg-slate-800/90 rounded-lg border border-slate-700">
-          <div className="font-semibold text-white text-lg">{selectedNode.label}</div>
-          {selectedNode.meaning && (
-            <div className="mt-1 text-sm text-slate-300">{selectedNode.meaning}</div>
-          )}
-          {selectedNode.meaningKo && (
-            <div className="mt-1 text-sm text-indigo-300">({selectedNode.meaningKo})</div>
-          )}
-          {selectedNode.language && (
-            <div className="mt-2 text-xs text-slate-400">출처: {selectedNode.language}</div>
-          )}
-          <div className="mt-2 text-xs text-cyan-400 font-medium">
-            {selectedNode.type === 'component' && '👆 클릭하여 파생어 보기'}
-            {selectedNode.type === 'derivative' && '👆 클릭하여 이 단어 탐색'}
-            {selectedNode.type === 'root' && '👆 클릭하여 파생어 보기'}
-          </div>
-        </div>
-      )}
 
       {/* Instructions */}
       <div className="absolute bottom-4 right-4 z-10 px-3 py-2 bg-slate-800/80 rounded-lg text-xs text-slate-400">
@@ -391,7 +412,7 @@ export default function EtymologyGraph({ initialWord, onWordSelect }: EtymologyG
         nodeCanvasObject={nodeCanvasObject}
         nodeCanvasObjectMode={() => 'replace'}
         onNodeClick={handleNodeClick}
-        onNodeHover={(node) => setSelectedNode(node as GraphNode | null)}
+        onNodeHover={(node) => setHoveredNode(node as GraphNode | null)}
         linkColor={() => '#475569'}
         linkWidth={2}
         linkDirectionalParticles={2}
