@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: etymograph-config
+  namespace: etymograph
+data:
+  # API Configuration
+  API_PORT: "4000"
+  LLM_PROXY_URL: "http://llm-proxy:8081"
+  RATE_LIMITER_URL: "http://rate-limiter:8080"
+  REDIS_URL: "redis://redis:6379"
+
+  # LLM Proxy Configuration
+  LLM_PROXY_PORT: "8081"
+  OLLAMA_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "qwen3:8b"
+
+  # Rate Limiter Configuration
+  RATE_LIMITER_PORT: "8080"
+
+  # Frontend Configuration
+  NEXT_PUBLIC_API_URL: "http://api:4000"

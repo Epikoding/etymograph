@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: etymograph-ingress
+  namespace: etymograph
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  rules:
+    - host: etymograph.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 4000
+---
+# IngressRoute for more advanced Traefik features (optional)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: etymograph-route
+  namespace: etymograph
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`etymograph.local`) && PathPrefix(`/api`)
+      kind: Rule
+      services:
+        - name: api
+          port: 4000
+      middlewares:
+        - name: rate-limit
+    - match: Host(`etymograph.local`)
+      kind: Rule
+      services:
+        - name: frontend
+          port: 3000
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit
+  namespace: etymograph
+spec:
+  rateLimit:
+    average: 100
+    burst: 50

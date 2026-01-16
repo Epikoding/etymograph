@@ -1,0 +1,98 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    depends_on:
+      - api
+    networks:
+      - etymograph
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=postgresql://etymograph:etymograph@postgres:5432/etymograph
+      - REDIS_URL=redis://redis:6379
+      - LLM_PROXY_URL=http://llm-proxy:8081
+      - RATE_LIMITER_URL=http://rate-limiter:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      llm-proxy:
+        condition: service_started
+    networks:
+      - etymograph
+
+  llm-proxy:
+    build:
+      context: ./llm-proxy
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - PORT=8081
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - etymograph
+
+  rate-limiter:
+    build:
+      context: ./rate-limiter
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PORT=8080
+    depends_on:
+      - redis
+    networks:
+      - etymograph
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=etymograph
+      - POSTGRES_PASSWORD=etymograph
+      - POSTGRES_DB=etymograph
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U etymograph"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - etymograph
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - etymograph
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  etymograph:
+    driver: bridge

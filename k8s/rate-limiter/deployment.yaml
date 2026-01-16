@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rate-limiter
+  namespace: etymograph
+  labels:
+    app: rate-limiter
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rate-limiter
+  template:
+    metadata:
+      labels:
+        app: rate-limiter
+    spec:
+      containers:
+        - name: rate-limiter
+          image: etymograph/rate-limiter:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: etymograph-config
+                  key: RATE_LIMITER_PORT
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: etymograph-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
+            limits:
+              memory: "64Mi"
+              cpu: "250m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
