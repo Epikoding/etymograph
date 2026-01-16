@@ -28,15 +28,15 @@ type AnalyzeRequest struct {
 }
 
 func (c *LLMClient) GetEtymology(word string) (map[string]interface{}, error) {
-	return c.callEndpoint("/etymology", word)
+	return c.callEndpoint("/api/etymology", word)
 }
 
 func (c *LLMClient) GetDerivatives(word string) (map[string]interface{}, error) {
-	return c.callEndpoint("/derivatives", word)
+	return c.callEndpoint("/api/derivatives", word)
 }
 
 func (c *LLMClient) GetSynonyms(word string) (map[string]interface{}, error) {
-	return c.callEndpoint("/synonyms", word)
+	return c.callEndpoint("/api/synonyms", word)
 }
 
 func (c *LLMClient) callEndpoint(endpoint, word string) (map[string]interface{}, error) {
