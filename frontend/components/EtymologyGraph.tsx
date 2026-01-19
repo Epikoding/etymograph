@@ -130,6 +130,16 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
   const [loading, setLoading] = useState(false);
   const [loadingNodeIds, setLoadingNodeIds] = useState<Set<string>>(new Set());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Auto-dismiss error message after 3 seconds
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage]);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [, setAnimationTick] = useState(0); // 애니메이션용 리렌더 트리거
@@ -1228,9 +1238,8 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
   return (
     <div ref={containerRef} className="relative w-full h-full min-h-[600px] bg-slate-900 rounded-xl overflow-hidden">
       {loading && (
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-2 px-3 py-2 bg-slate-800/80 rounded-lg text-slate-300 text-sm">
-          <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-          Loading...
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+          <div className="w-8 h-8 rounded-full border-[3px] border-blue-400/30 border-t-blue-400 animate-spin shadow-[0_0_15px_rgba(96,165,250,0.5)]" />
         </div>
       )}
 
@@ -1608,14 +1617,17 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           console.log('[onNodeDrag]', nodeId, node?.x, node?.y);
           // Initialize drag state on first drag event
           if (!dragStateRef.current || dragStateRef.current.nodeId !== nodeId) {
-            // Use linksRef for finding connected nodes (more reliable than state)
-            const connectedIds = getConnectedDescendants(nodeId, linksRef.current);
+            // Access d3's internal link array which has source/target mutated to node objects
+            const d3LinkForce = graphRef.current?.d3Force?.('link');
+            const d3Links = d3LinkForce?.links?.() || links;
+            const connectedIds = getConnectedDescendants(nodeId, d3Links);
             const connectedNodesMap = new Map<string, { startX: number; startY: number; node: any }>();
 
-            console.log('[Drag Start] node:', nodeId, 'connectedIds:', [...connectedIds]);
+            console.log('[Drag Start] node:', nodeId, 'connectedIds:', [...connectedIds], 'd3Links:', d3Links.length);
 
-            // Find node objects from nodes state (they have the current d3 positions)
-            nodes.forEach((n: any) => {
+            // Access d3's internal node array which has x/y/fx/fy values
+            const d3ForceNodes = graphRef.current?.d3Force?.('charge')?.nodes?.() || nodes;
+            d3ForceNodes.forEach((n: any) => {
               if (connectedIds.has(n.id)) {
                 // Store original position (keep fx/fy - we'll update them during drag)
                 const startX = n.fx ?? n.x ?? 0;
@@ -1672,8 +1684,8 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         }}
         onEngineStop={() => {
           // Fix all node positions when simulation stops
-          nodes.forEach(node => {
-            const n = node as any;
+          // d3 mutates x/y in place on the same node objects in the nodes array
+          nodes.forEach((n: any) => {
             if (n.x !== undefined && n.y !== undefined) {
               n.fx = n.x;
               n.fy = n.y;
