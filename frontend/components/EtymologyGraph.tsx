@@ -14,7 +14,7 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
 interface GraphNode {
   id: string;
   label: string;
-  type: 'word' | 'component' | 'derivative' | 'root';
+  type: 'word' | 'component' | 'derivative' | 'root' | 'synonym';
   meaning?: string;
   meaningKo?: string;
   language?: string;
@@ -48,6 +48,7 @@ const COLORS = {
   component: '#f43f5e',  // rose-500 (red)
   derivative: '#06b6d4',
   root: '#f59e0b',
+  synonym: '#a855f7',    // purple-500
   latin: '#e11d48',
   greek: '#0ea5e9',
   french: '#a855f7',
@@ -756,6 +757,53 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         });
       }
 
+      // Add synonym nodes from etymology.synonyms
+      if (etymology?.synonyms && etymology.synonyms.length > 0) {
+        const wordNode = newNodes.find(n => n.id === wordNodeId) || currentNodes.find(n => n.id === wordNodeId);
+        const synWordX = wordNode?.fx ?? wordNode?.x ?? 0;
+        const synWordY = wordNode?.fy ?? wordNode?.y ?? 0;
+        const synWordDepth = wordNode?.depth ?? 0;
+        const synWordAngle = wordNode?.angle;
+        const synCount = etymology.synonyms.length;
+
+        etymology.synonyms.forEach((syn: { word: string; meaning: string; nuance: string }, idx: number) => {
+          // Check if synonym already exists
+          const existingSyn = findExistingNodeByLabel(syn.word, [...currentNodes, ...newNodes]);
+          if (existingSyn) return;
+
+          const synId = `syn-${word}-${syn.word}`;
+          const isFirstLevel = synWordDepth === 0;
+          // 동의어: 왼쪽 아래 방향으로 배치 (파생어와 반대)
+          const synBaseAngle = isFirstLevel ? (-3 * Math.PI / 4) : (synWordAngle ?? -Math.PI / 2);
+          const synSectorRange = isFirstLevel ? (Math.PI / 2) : (Math.PI / 3); // 90° 범위
+          const synPos = getRadialPosition(synWordX, synWordY, synBaseAngle, synWordDepth, idx, synCount, isFirstLevel, synSectorRange);
+          const synAdjusted = adjustForCollision(synPos.x, synPos.y, synPos.angle, [...currentNodes, ...newNodes], 55);
+
+          newNodes.push({
+            id: synId,
+            label: syn.word,
+            type: 'synonym',
+            meaning: syn.nuance,
+            meaningKo: syn.meaning,
+            color: COLORS.synonym,
+            size: 8,
+            x: synAdjusted.x,
+            y: synAdjusted.y,
+            fx: synAdjusted.x,
+            fy: synAdjusted.y,
+            depth: synPos.depth,
+            angle: synPos.angle,
+            createdAt: Date.now(),
+            sourceX: synWordX,
+            sourceY: synWordY,
+          });
+          newLinks.push({
+            source: wordNodeId,
+            target: synId,
+          });
+        });
+      }
+
       // Handle suffix/prefix type etymology - show example words
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const etymologyAny = etymology as any;
@@ -1047,6 +1095,10 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       // Pass the derivative node ID as parent and as clicked node for loading indicator
       loadWord(node.label, node.id, node.id);
       onWordSelect?.(node.label);
+    } else if (node.type === 'synonym') {
+      // Load synonym word etymology
+      loadWord(node.label, node.id, node.id);
+      onWordSelect?.(node.label);
     } else if (node.type === 'root') {
       // 어근 클릭 시 API 호출 안 함 (정보 표시만)
     }
@@ -1212,6 +1264,10 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.derivative }} />
           <span className="text-slate-300">파생어</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.synonym }} />
+          <span className="text-slate-300">동의어</span>
         </div>
       </div>
 
