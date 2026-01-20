@@ -64,6 +64,16 @@ func (h *WordHandler) Search(c *gin.Context) {
 	}
 
 	normalizedWord := strings.ToLower(strings.TrimSpace(req.Word))
+
+	// Block invalid search term "-"
+	if normalizedWord == "-" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid search term",
+			"code":  "INVALID_SEARCH_TERM",
+		})
+		return
+	}
+
 	language := req.Language
 	if language == "" {
 		language = "Korean"
