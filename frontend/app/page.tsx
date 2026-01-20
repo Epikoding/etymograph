@@ -257,7 +257,7 @@ export default function Home() {
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       {/* Compact Search Header */}
-      <div className="flex-shrink-0 px-6 py-3 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">
+      <div className="flex-shrink-0 px-6 py-3 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 relative z-30">
         <div className="max-w-4xl mx-auto flex items-center gap-4">
           {/* Back button */}
           <button
