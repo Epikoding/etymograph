@@ -106,8 +106,9 @@ export default function Home() {
     setSearchedWord(query.trim().toLowerCase());
   };
 
-  const handleWordSelect = (word: string) => {
-    setQuery(word);
+  const handleWordSelect = (_word: string) => {
+    // 그래프 노드 클릭 시 검색란 업데이트 안 함
+    // 그래프 내부에서 loadWord로 확장만 처리
   };
 
   const handleExampleClick = (word: string) => {
