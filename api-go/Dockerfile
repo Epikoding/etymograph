@@ -19,6 +19,7 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /app
 
 COPY --from=builder /api .
+COPY --from=builder /app/data ./data
 
 EXPOSE 4000
 

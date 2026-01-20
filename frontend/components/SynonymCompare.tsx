@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, ArrowRight, Scale } from 'lucide-react';
+import { ArrowRight, Scale } from 'lucide-react';
 import { api } from '@/lib/api';
+import LoadingSpinner from '@/components/LoadingSpinner';
 import type { SynonymsData } from '@/types/word';
 
 interface SynonymCompareProps {
@@ -32,7 +33,7 @@ export default function SynonymCompare({ word, onExplore }: SynonymCompareProps)
   if (loading) {
     return (
       <div className="p-6 flex justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
+        <LoadingSpinner size="md" />
       </div>
     );
   }

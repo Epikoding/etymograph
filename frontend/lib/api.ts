@@ -2,11 +2,38 @@ import type { Word, Session, SessionGraph, DerivativesData, SynonymsData } from 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+// Supported languages for etymology translations
+export const SUPPORTED_LANGUAGES = ['Korean', 'Japanese', 'Chinese'] as const;
+export type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
+
+// Custom error class with code
+export class ApiError extends Error {
+  code?: string;
+  word?: string;
+
+  constructor(message: string, code?: string, word?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.word = word;
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
+  private _language: SupportedLanguage = 'Korean';
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+  }
+
+  // Get/Set current language
+  get language(): SupportedLanguage {
+    return this._language;
+  }
+
+  setLanguage(lang: SupportedLanguage): void {
+    this._language = lang;
   }
 
   private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -19,31 +46,60 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+      const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new ApiError(
+        errorData.error || `HTTP ${response.status}`,
+        errorData.code,
+        errorData.word
+      );
     }
 
     return response.json();
   }
 
   // Words
-  async searchWord(word: string): Promise<Word> {
+  async searchWord(word: string, language?: SupportedLanguage): Promise<Word> {
     return this.fetch<Word>('/words/search', {
       method: 'POST',
-      body: JSON.stringify({ word }),
+      body: JSON.stringify({ word, language: language || this._language }),
     });
   }
 
-  async getEtymology(word: string): Promise<Word> {
-    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/etymology`);
+  async getEtymology(word: string, language?: SupportedLanguage): Promise<Word> {
+    const lang = language || this._language;
+    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/etymology?language=${lang}`);
   }
 
-  async getDerivatives(word: string): Promise<Word & { derivativesData?: DerivativesData }> {
-    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/derivatives`);
+  async getDerivatives(word: string, language?: SupportedLanguage): Promise<{ word: string; language: string; derivatives: Array<{ word: string; meaning: string }> }> {
+    const lang = language || this._language;
+    return this.fetch<{ word: string; language: string; derivatives: Array<{ word: string; meaning: string }> }>(`/words/${encodeURIComponent(word)}/derivatives?language=${lang}`);
   }
 
-  async getSynonyms(word: string): Promise<Word & { synonymsData?: SynonymsData }> {
-    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/synonyms`);
+  async getSynonyms(word: string, language?: SupportedLanguage): Promise<{ word: string; language: string; synonyms: SynonymsData }> {
+    const lang = language || this._language;
+    return this.fetch<{ word: string; language: string; synonyms: SynonymsData }>(`/words/${encodeURIComponent(word)}/synonyms?language=${lang}`);
+  }
+
+  // Etymology refresh/compare
+  async refreshEtymology(word: string, language?: SupportedLanguage): Promise<Word> {
+    const lang = language || this._language;
+    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/refresh?language=${lang}`, {
+      method: 'POST',
+    });
+  }
+
+  async applyEtymology(word: string, language?: SupportedLanguage): Promise<Word> {
+    const lang = language || this._language;
+    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/apply?language=${lang}`, {
+      method: 'POST',
+    });
+  }
+
+  async revertEtymology(word: string, language?: SupportedLanguage): Promise<Word> {
+    const lang = language || this._language;
+    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/revert?language=${lang}`, {
+      method: 'POST',
+    });
   }
 
   // Sessions

@@ -24,11 +24,16 @@ func NewLLMClient(baseURL string) *LLMClient {
 }
 
 type AnalyzeRequest struct {
-	Word string `json:"word"`
+	Word     string `json:"word"`
+	Language string `json:"language,omitempty"`
 }
 
 func (c *LLMClient) GetEtymology(word string) (map[string]interface{}, error) {
-	return c.callEndpoint("/api/etymology", word)
+	return c.GetEtymologyWithLang(word, "Korean")
+}
+
+func (c *LLMClient) GetEtymologyWithLang(word, language string) (map[string]interface{}, error) {
+	return c.callEndpointWithLang("/api/etymology", word, language)
 }
 
 func (c *LLMClient) GetDerivatives(word string) (map[string]interface{}, error) {
@@ -40,7 +45,11 @@ func (c *LLMClient) GetSynonyms(word string) (map[string]interface{}, error) {
 }
 
 func (c *LLMClient) callEndpoint(endpoint, word string) (map[string]interface{}, error) {
-	reqBody, err := json.Marshal(AnalyzeRequest{Word: word})
+	return c.callEndpointWithLang(endpoint, word, "")
+}
+
+func (c *LLMClient) callEndpointWithLang(endpoint, word, language string) (map[string]interface{}, error) {
+	reqBody, err := json.Marshal(AnalyzeRequest{Word: word, Language: language})
 	if err != nil {
 		return nil, err
 	}

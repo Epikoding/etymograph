@@ -9,10 +9,10 @@ import (
 )
 
 type SynonymsHandler struct {
-	client *llm.Client
+	client llm.LLMClient
 }
 
-func NewSynonymsHandler(client *llm.Client) *SynonymsHandler {
+func NewSynonymsHandler(client llm.LLMClient) *SynonymsHandler {
 	return &SynonymsHandler{client: client}
 }
 

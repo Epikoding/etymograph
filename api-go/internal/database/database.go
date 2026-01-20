@@ -20,9 +20,18 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 }
 
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	err := db.AutoMigrate(
 		&model.Word{},
 		&model.Session{},
 		&model.SessionWord{},
 	)
+	if err != nil {
+		return err
+	}
+
+	// Drop old unique index on word only (if exists) and create composite unique index
+	db.Exec("DROP INDEX IF EXISTS idx_words_word")
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_words_word_language ON words(word, language)")
+
+	return nil
 }

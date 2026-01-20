@@ -79,18 +79,7 @@ ROOT AND LANGUAGE STANDARDIZATION RULES - CRITICAL FOR GRAPH CONSISTENCY:
      - Use Latin "recipere" (NOT Old French "receivre")
      - Trace back to the original Latin/Greek source
 
-7. DERIVATIVES FILTERING:
-   - Remove duplicate derivatives - each derivative word should appear only once
-   - DO NOT include simple inflectional forms (-ed, -ing, -s) of the input word:
-     - "interview" → exclude "interviewed", "interviewing", "interviews"
-     - "teach" → exclude "taught", "teaching", "teaches"
-     - "play" → exclude "played", "playing", "plays"
-   - Only include TRUE derivatives (different words with shared etymology):
-     - "interview" → include "interviewer", "interviewee" (agent/patient nouns)
-     - "teach" → include "teacher", "teaching" (as noun), "teachable"
-     - "play" → include "player", "playful", "replay"
-
-8. SYNONYMS - WORDS WITH SIMILAR MEANING BUT DIFFERENT ETYMOLOGY:
+7. SYNONYMS - WORDS WITH SIMILAR MEANING BUT DIFFERENT ETYMOLOGY:
    - Include 3-5 synonyms that have similar meanings but DIFFERENT etymological roots
    - Focus on commonly used synonyms that learners would benefit from knowing
    - Explain the nuance difference in target language

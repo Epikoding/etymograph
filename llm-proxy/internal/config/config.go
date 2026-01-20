@@ -5,16 +5,22 @@ import (
 )
 
 type Config struct {
-	Port      string
-	OllamaURL string
-	Model     string
+	Port         string
+	LLMProvider  string // "ollama" or "gemini"
+	OllamaURL    string
+	OllamaModel  string
+	GeminiAPIKey string
+	GeminiModel  string
 }
 
 func Load() *Config {
 	return &Config{
-		Port:      getEnv("PORT", "8081"),
-		OllamaURL: getEnv("OLLAMA_URL", "http://localhost:11434"),
-		Model:     getEnv("OLLAMA_MODEL", "qwen3:8b"),
+		Port:         getEnv("PORT", "8081"),
+		LLMProvider:  getEnv("LLM_PROVIDER", "gemini"),
+		OllamaURL:    getEnv("OLLAMA_URL", "http://localhost:11434"),
+		OllamaModel:  getEnv("OLLAMA_MODEL", "qwen3:8b"),
+		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
+		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-2.0-flash"),
 	}
 }
 

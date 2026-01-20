@@ -3,18 +3,17 @@ package model
 import (
 	"time"
 
-	"github.com/lib/pq"
 	"gorm.io/datatypes"
 )
 
 type Word struct {
-	ID          string         `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	Word        string         `gorm:"uniqueIndex;not null" json:"word"`
-	Etymology   datatypes.JSON `json:"etymology"`
-	Derivatives pq.StringArray `gorm:"type:text[]" json:"derivatives"`
-	Synonyms    datatypes.JSON `json:"synonyms"`
-	CreatedAt   time.Time      `json:"createdAt"`
-	UpdatedAt   time.Time      `json:"updatedAt"`
+	ID            int64          `gorm:"primaryKey;autoIncrement" json:"id"`
+	Word          string         `gorm:"not null" json:"word"`
+	Language      string         `gorm:"not null;default:'ko'" json:"language"`
+	Etymology     datatypes.JSON `json:"etymology"`
+	EtymologyPrev datatypes.JSON `json:"etymologyPrev,omitempty"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	UpdatedAt     time.Time      `json:"updatedAt"`
 }
 
 func (Word) TableName() string {

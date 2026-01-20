@@ -9,10 +9,10 @@ import (
 )
 
 type DerivativesHandler struct {
-	client *llm.Client
+	client llm.LLMClient
 }
 
-func NewDerivativesHandler(client *llm.Client) *DerivativesHandler {
+func NewDerivativesHandler(client llm.LLMClient) *DerivativesHandler {
 	return &DerivativesHandler{client: client}
 }
 

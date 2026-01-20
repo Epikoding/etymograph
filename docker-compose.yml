@@ -24,6 +24,8 @@ services:
       - LLM_PROXY_URL=http://llm-proxy:8081
       - RATE_LIMIT_URL=http://rate-limiter:8080
       - PORT=4000
+      - SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-false}
+      - SCHEDULER_INTERVAL=${SCHEDULER_INTERVAL:-5s}
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,7 +43,11 @@ services:
     ports:
       - "8081:8081"
     environment:
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - OLLAMA_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:8b}
       - PORT=8081
     extra_hosts:
       - "host.docker.internal:host-gateway"

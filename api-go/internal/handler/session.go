@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,7 +65,12 @@ func (h *SessionHandler) Get(c *gin.Context) {
 }
 
 func (h *SessionHandler) AddWord(c *gin.Context) {
-	sessionID := c.Param("id")
+	sessionIDStr := c.Param("id")
+	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
+		return
+	}
 
 	var req AddWordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -98,12 +104,23 @@ func (h *SessionHandler) AddWord(c *gin.Context) {
 		Select("COALESCE(MAX(\"order\"), 0)").
 		Scan(&maxOrder)
 
+	// Parse ParentID if provided
+	var parentID *int64
+	if req.ParentID != nil {
+		pid, err := strconv.ParseInt(*req.ParentID, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parent ID"})
+			return
+		}
+		parentID = &pid
+	}
+
 	// Create session word
 	sessionWord := model.SessionWord{
 		SessionID: sessionID,
 		WordID:    word.ID,
 		Order:     maxOrder + 1,
-		ParentID:  req.ParentID,
+		ParentID:  parentID,
 	}
 
 	if err := h.db.Create(&sessionWord).Error; err != nil {

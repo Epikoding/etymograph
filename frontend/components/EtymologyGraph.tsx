@@ -41,6 +41,7 @@ interface EtymologyGraphProps {
   initialWord?: string;
   language?: SupportedLanguage;
   onWordSelect?: (word: string) => void;
+  onInitialLoad?: () => void;
 }
 
 const COLORS = {
@@ -124,7 +125,7 @@ function getKoreanMeaning(meaning: string): string {
   return '';
 }
 
-export default function EtymologyGraph({ initialWord, language = 'Korean', onWordSelect }: EtymologyGraphProps) {
+export default function EtymologyGraph({ initialWord, language = 'Korean', onWordSelect, onInitialLoad }: EtymologyGraphProps) {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [links, setLinks] = useState<GraphLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -149,6 +150,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
   const loadedWordsRef = useRef<Set<string>>(new Set());
   const nodesRef = useRef<GraphNode[]>([]); // Track nodes in ref for reliable duplicate detection
   const linksRef = useRef<GraphLink[]>([]); // Track links in ref for reliable drag detection
+  const isInitialLoadRef = useRef(false); // Track if it's the initial load
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -193,7 +195,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       graphRef.current.d3Force('charge')?.strength((node: any) => node.fx !== undefined ? 0 : -60);
 
       // link force: 매우 약하게 (고정된 노드들을 움직이지 않도록)
-      graphRef.current.d3Force('link')?.distance(40).strength(0.05);
+      graphRef.current.d3Force('link')?.distance(48).strength(0.05);
 
       // 노드 겹침 방지: fx와 fy 모두 고정된 노드는 제외
       graphRef.current.d3Force('collision', forceCollide((node: any) => {
@@ -247,6 +249,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
     setHoveredNode(null);
 
     const timer = setTimeout(() => {
+      isInitialLoadRef.current = true;
       loadWord(initialWord);
     }, 50);
 
@@ -292,8 +295,8 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
     return found;
   };
 
-  // 상수: 노드 간 거리
-  const RADIAL_DISTANCE = 120;
+  // 상수: 노드 간 거리 (20% 증가)
+  const RADIAL_DISTANCE = 144;
 
   // 방사형 위치 계산: 부모 각도 방향으로 계속 확장
   const getRadialPosition = (
@@ -911,6 +914,11 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           return next;
         });
       }
+      // Call onInitialLoad callback for the first load
+      if (isInitialLoadRef.current) {
+        isInitialLoadRef.current = false;
+        onInitialLoad?.();
+      }
     }
   };
 
@@ -1237,12 +1245,6 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
   return (
     <div ref={containerRef} className="relative w-full h-full min-h-[600px] bg-slate-900 rounded-xl overflow-hidden">
-      {loading && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-          <div className="w-8 h-8 rounded-full border-[3px] border-blue-400/30 border-t-blue-400 animate-spin shadow-[0_0_15px_rgba(96,165,250,0.5)]" />
-        </div>
-      )}
-
       {/* Error Message */}
       {errorMessage && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-4 py-3 bg-red-900/90 border border-red-700 rounded-lg text-red-200 text-sm">
@@ -1279,13 +1281,6 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           <span className="text-slate-300">동의어</span>
         </div>
       </div>
-
-      {/* Instructions */}
-      {!selectedNode && (
-        <div className="absolute bottom-4 right-4 z-10 px-3 py-2 bg-slate-800/80 rounded-lg text-xs text-slate-400">
-          단어를 클릭하면 수천 년의 여정이 펼쳐집니다
-        </div>
-      )}
 
       {nodes.length === 0 && !loading && (
         <div className="absolute inset-0 flex items-center justify-center text-slate-500">

@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
+	"github.com/etymograph/api/internal/cache"
+	"github.com/etymograph/api/internal/client"
 	"github.com/etymograph/api/internal/config"
 	"github.com/etymograph/api/internal/database"
 	"github.com/etymograph/api/internal/handler"
+	"github.com/etymograph/api/internal/scheduler"
+	"github.com/etymograph/api/internal/validator"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,10 +29,44 @@ func main() {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 
+	// Initialize Redis cache
+	var redisCache *cache.RedisCache
+	redisCache, err = cache.NewRedisCache(cfg.RedisURL)
+	if err != nil {
+		log.Printf("Warning: Failed to connect to Redis: %v", err)
+		// Continue without Redis cache (fail-open)
+	}
+
+	// Initialize word validator
+	wordValidator, err := validator.NewWordValidator("data/words.txt")
+	if err != nil {
+		log.Printf("Warning: Failed to load word validator: %v", err)
+		// Continue without validator (fail-open)
+	}
+
 	// Initialize handlers
-	wordHandler := handler.NewWordHandler(db, cfg)
+	wordHandler := handler.NewWordHandler(db, redisCache, cfg, wordValidator)
 	sessionHandler := handler.NewSessionHandler(db)
 	exportHandler := handler.NewExportHandler(db)
+
+	// Initialize and start background scheduler if enabled
+	var etymologyScheduler *scheduler.EtymologyScheduler
+	if cfg.SchedulerEnabled {
+		llmClient := client.NewLLMClient(cfg.LLMProxyURL)
+		var err error
+		etymologyScheduler, err = scheduler.NewEtymologyScheduler(db, llmClient, scheduler.SchedulerConfig{
+			WordListPath: "data/priority_words.txt",
+			Interval:     cfg.SchedulerInterval,
+			Languages:    []string{"Korean", "Japanese", "Chinese"},
+		})
+		if err != nil {
+			log.Printf("Warning: Failed to initialize scheduler: %v", err)
+		} else {
+			ctx := context.Background()
+			go etymologyScheduler.Start(ctx)
+			log.Println("Background etymology scheduler started")
+		}
+	}
 
 	// Setup router
 	r := gin.Default()
@@ -49,6 +88,15 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	// Scheduler status
+	r.GET("/scheduler/status", func(c *gin.Context) {
+		if etymologyScheduler != nil {
+			c.JSON(200, etymologyScheduler.GetStatus())
+		} else {
+			c.JSON(200, gin.H{"enabled": false, "message": "Scheduler is disabled"})
+		}
+	})
+
 	// API routes
 	api := r.Group("/api")
 	{
@@ -57,6 +105,9 @@ func main() {
 		api.GET("/words/:word/etymology", wordHandler.GetEtymology)
 		api.GET("/words/:word/derivatives", wordHandler.GetDerivatives)
 		api.GET("/words/:word/synonyms", wordHandler.GetSynonyms)
+		api.POST("/words/:word/refresh", wordHandler.RefreshEtymology)
+		api.POST("/words/:word/apply", wordHandler.ApplyEtymology)
+		api.POST("/words/:word/revert", wordHandler.RevertEtymology)
 
 		// Sessions
 		api.POST("/sessions", sessionHandler.Create)

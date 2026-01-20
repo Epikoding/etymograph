@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Loader2, ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download } from 'lucide-react';
 import { api } from '@/lib/api';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import FadeTransition from '@/components/FadeTransition';
 import type { Session, SessionGraph } from '@/types/word';
 import EtymologyCard from '@/components/EtymologyCard';
 import WordGraph from '@/components/WordGraph';
@@ -27,14 +29,14 @@ export default function ExplorePage() {
         const newSession = await api.createSession(`Exploring: ${word}`);
 
         // Add the initial word
-        await api.addWordToSession(newSession.id, word);
+        await api.addWordToSession(String(newSession.id), word);
 
         // Get the updated session
-        const updatedSession = await api.getSession(newSession.id);
+        const updatedSession = await api.getSession(String(newSession.id));
         setSession(updatedSession);
 
         // Get the graph
-        const graphData = await api.getSessionGraph(newSession.id);
+        const graphData = await api.getSessionGraph(String(newSession.id));
         setGraph(graphData.graph);
 
         setSelectedWord(word);
@@ -52,13 +54,13 @@ export default function ExplorePage() {
     if (!session) return;
 
     try {
-      await api.addWordToSession(session.id, newWord, parentId);
+      await api.addWordToSession(String(session.id), newWord, parentId);
 
       // Refresh session and graph
-      const updatedSession = await api.getSession(session.id);
+      const updatedSession = await api.getSession(String(session.id));
       setSession(updatedSession);
 
-      const graphData = await api.getSessionGraph(session.id);
+      const graphData = await api.getSessionGraph(String(session.id));
       setGraph(graphData.graph);
 
       setSelectedWord(newWord);
@@ -73,9 +75,9 @@ export default function ExplorePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-      </div>
+      <FadeTransition show={loading} className="flex items-center justify-center min-h-[60vh]">
+        <LoadingSpinner size="lg" />
+      </FadeTransition>
     );
   }
 
@@ -109,7 +111,7 @@ export default function ExplorePage() {
 
         {session && (
           <a
-            href={api.getExportUrl(session.id, 'md')}
+            href={api.getExportUrl(String(session.id), 'md')}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors"
           >
             <Download className="w-4 h-4" />

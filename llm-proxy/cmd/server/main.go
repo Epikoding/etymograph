@@ -16,8 +16,21 @@ func main() {
 
 	cfg := config.Load()
 
-	// Initialize LLM client
-	client := llm.NewClient(cfg.OllamaURL, cfg.Model)
+	// Initialize LLM client based on provider
+	var client llm.LLMClient
+	switch cfg.LLMProvider {
+	case "gemini":
+		if cfg.GeminiAPIKey == "" {
+			log.Fatal("GEMINI_API_KEY is required when using gemini provider")
+		}
+		client = llm.NewGeminiClient(cfg.GeminiAPIKey, cfg.GeminiModel)
+		log.Printf("Using Gemini API with model: %s", cfg.GeminiModel)
+	case "ollama":
+		client = llm.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel)
+		log.Printf("Using Ollama at %s with model: %s", cfg.OllamaURL, cfg.OllamaModel)
+	default:
+		log.Fatalf("Unknown LLM provider: %s (supported: gemini, ollama)", cfg.LLMProvider)
+	}
 
 	// Initialize handlers
 	etymologyHandler := handler.NewEtymologyHandler(client)
@@ -41,8 +54,6 @@ func main() {
 	}
 
 	log.Printf("LLM Proxy starting on port %s", cfg.Port)
-	log.Printf("Ollama URL: %s", cfg.OllamaURL)
-	log.Printf("Model: %s", cfg.Model)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)

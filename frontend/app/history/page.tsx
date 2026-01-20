@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Trash2, Download, ExternalLink } from 'lucide-react';
+import { Trash2, Download, ExternalLink } from 'lucide-react';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import FadeTransition from '@/components/FadeTransition';
 
 // Note: This is a placeholder. In a real app, you'd store session IDs
 // in localStorage or a backend service.
@@ -38,9 +40,9 @@ export default function HistoryPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-      </div>
+      <FadeTransition show={loading} className="flex items-center justify-center min-h-[60vh]">
+        <LoadingSpinner size="lg" />
+      </FadeTransition>
     );
   }
 

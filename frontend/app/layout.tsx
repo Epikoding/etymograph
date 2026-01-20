@@ -23,20 +23,6 @@ export default function RootLayout({
                     EtymoGraph
                   </span>
                 </a>
-                <nav className="flex space-x-6">
-                  <a
-                    href="/"
-                    className="text-slate-400 hover:text-white transition-colors"
-                  >
-                    Explore
-                  </a>
-                  <a
-                    href="/history"
-                    className="text-slate-400 hover:text-white transition-colors"
-                  >
-                    History
-                  </a>
-                </nav>
               </div>
             </div>
           </header>
