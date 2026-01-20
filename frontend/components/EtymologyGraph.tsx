@@ -622,8 +622,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
           // Components branch from root (e.g., praetextum → prae- + textum)
           if (etymology.origin.components) {
-            const compCount = etymology.origin.components.length;
-            etymology.origin.components.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
+            const validComponents = etymology.origin.components.filter((c: { part: string }) => c.part !== '-');
+            const compCount = validComponents.length;
+            validComponents.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
               const koreanMeaning = comp.meaningLocalized || comp.meaningKo || getKoreanMeaning(comp.meaning);
 
               // Check if this component already exists
@@ -669,8 +670,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           }
         } else if (etymology.origin.components) {
           // No root, components connect directly to word
-          const compCount = etymology.origin.components.length;
-          etymology.origin.components.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
+          const validComponents = etymology.origin.components.filter((c: { part: string }) => c.part !== '-');
+          const compCount = validComponents.length;
+          validComponents.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
             const koreanMeaning = comp.meaningLocalized || comp.meaningKo || getKoreanMeaning(comp.meaning);
 
             // Check if this component already exists
@@ -1459,9 +1461,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                     {selectedNode.etymology.origin.rootMeaning && (
                       <p className="text-sm text-slate-400">{selectedNode.etymology.origin.rootMeaning}</p>
                     )}
-                    {selectedNode.etymology.origin.components && (
+                    {selectedNode.etymology.origin.components?.filter(c => c.part !== '-').length > 0 && (
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {selectedNode.etymology.origin.components.map((comp, i) => (
+                        {selectedNode.etymology.origin.components.filter(c => c.part !== '-').map((comp, i) => (
                           <div key={i} className="bg-purple-500/20 px-2 py-1 rounded text-sm">
                             <span className="text-purple-300 font-medium">{comp.part}</span>
                             <span className="text-slate-400 ml-1">
