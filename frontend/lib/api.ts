@@ -65,6 +65,21 @@ class ApiClient {
     });
   }
 
+  // Autocomplete suggestions
+  async getSuggestions(query: string, limit: number = 8): Promise<string[]> {
+    if (query.length < 2) return [];
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/api/words/suggest?q=${encodeURIComponent(query)}&limit=${limit}`
+      );
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.suggestions || [];
+    } catch {
+      return [];
+    }
+  }
+
   async getEtymology(word: string, language?: SupportedLanguage): Promise<Word> {
     const lang = language || this._language;
     return this.fetch<Word>(`/words/${encodeURIComponent(word)}/etymology?language=${lang}`);

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -413,6 +414,36 @@ func (h *WordHandler) RevertEtymology(c *gin.Context) {
 	word.EtymologyPrev = nil
 
 	c.JSON(http.StatusOK, word)
+}
+
+// Suggest returns word suggestions for autocomplete based on prefix
+func (h *WordHandler) Suggest(c *gin.Context) {
+	query := strings.ToLower(strings.TrimSpace(c.Query("q")))
+	if len(query) < 2 {
+		c.JSON(http.StatusOK, gin.H{"suggestions": []string{}})
+		return
+	}
+
+	limit := 8
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 20 {
+			limit = parsed
+		}
+	}
+
+	if h.cache == nil {
+		c.JSON(http.StatusOK, gin.H{"suggestions": []string{}})
+		return
+	}
+
+	suggestions, err := h.cache.GetSuggestions(c.Request.Context(), query, limit)
+	if err != nil {
+		log.Printf("Redis suggest error: %v", err)
+		c.JSON(http.StatusOK, gin.H{"suggestions": []string{}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"suggestions": suggestions})
 }
 
 // filterDerivativesInPlace removes grammatical variations of the input word from etymology derivatives.

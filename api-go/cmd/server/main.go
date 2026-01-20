@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/etymograph/api/internal/cache"
 	"github.com/etymograph/api/internal/client"
@@ -35,6 +37,11 @@ func main() {
 	if err != nil {
 		log.Printf("Warning: Failed to connect to Redis: %v", err)
 		// Continue without Redis cache (fail-open)
+	}
+
+	// Load words.txt into Redis for autocomplete
+	if redisCache != nil {
+		go loadWordsToRedis(redisCache, "data/words.txt")
 	}
 
 	// Initialize word validator
@@ -101,6 +108,7 @@ func main() {
 	api := r.Group("/api")
 	{
 		// Words
+		api.GET("/words/suggest", wordHandler.Suggest)
 		api.POST("/words/search", wordHandler.Search)
 		api.GET("/words/:word/etymology", wordHandler.GetEtymology)
 		api.GET("/words/:word/derivatives", wordHandler.GetDerivatives)
@@ -128,4 +136,52 @@ func main() {
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+// loadWordsToRedis loads words from a file into Redis for autocomplete
+func loadWordsToRedis(redisCache *cache.RedisCache, wordListPath string) {
+	ctx := context.Background()
+
+	// Check if autocomplete data already exists
+	count, err := redisCache.GetAutocompleteCount(ctx)
+	if err == nil && count > 0 {
+		log.Printf("Autocomplete already populated with %d words, skipping load", count)
+		return
+	}
+
+	file, err := os.Open(wordListPath)
+	if err != nil {
+		log.Printf("Warning: Failed to open word list for autocomplete: %v", err)
+		return
+	}
+	defer file.Close()
+
+	var words []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		word := strings.ToLower(strings.TrimSpace(scanner.Text()))
+		if word != "" {
+			words = append(words, word)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("Warning: Error reading word list: %v", err)
+		return
+	}
+
+	// Batch insert words in chunks to avoid memory issues
+	const batchSize = 1000
+	for i := 0; i < len(words); i += batchSize {
+		end := i + batchSize
+		if end > len(words) {
+			end = len(words)
+		}
+		if err := redisCache.AddWordsToAutocomplete(ctx, words[i:end]); err != nil {
+			log.Printf("Warning: Failed to add words to Redis autocomplete: %v", err)
+			return
+		}
+	}
+
+	log.Printf("Loaded %d words to Redis autocomplete", len(words))
 }
