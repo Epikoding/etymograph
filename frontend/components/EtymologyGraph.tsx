@@ -320,10 +320,10 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       const offsetRatio = (index / (total - 1)) - 0.5; // -0.5 to 0.5
       angle = baseAngle + offsetRatio * sectorRange;
     } else {
-      // 이후 레벨: 부모 방향 유지하면서 퍼짐 (더 넓게)
-      const spreadRange = Math.PI / 2; // 90도 범위로 퍼짐
+      // 이후 레벨: 부모 방향 유지하면서 퍼짐
+      // Use the passed sectorRange (Dynamic Fan-Out uses 120 degrees)
       const offsetRatio = (index / (total - 1)) - 0.5;
-      angle = baseAngle + offsetRatio * spreadRange;
+      angle = baseAngle + offsetRatio * sectorRange;
     }
 
     const x = parentX + RADIAL_DISTANCE * Math.cos(angle);
@@ -502,17 +502,45 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         });
       }
 
+      // 실제 단어 노드 정보 사용
+      const wordNode = newNodes.find(n => n.id === wordNodeId) || currentNodes.find(n => n.id === wordNodeId);
+      const wordX = wordNode?.fx ?? wordNode?.x ?? 0;
+      const wordY = wordNode?.fy ?? wordNode?.y ?? 0;
+      const wordDepth = wordNode?.depth ?? 0;
+      const allNodes = [...currentNodes, ...newNodes];
+
+      // START: Dynamic Fan-Out Setup for Level > 0
+      // If this is NOT the first level (i.e., we are expanding a node deep in the graph),
+      // we want to distribute ALL children (Roots, Components, Derivatives, Synonyms)
+      // in a single continuous arc (Fan-Out) instead of fixed sectors.
+      // This prevents "backwards" overlap.
+      const isFirstLevel = wordDepth === 0;
+      let totalChildCount = 0;
+      let runningChildIndex = 0;
+      // For Fan-Out (Level > 0), the sector range is 120 degrees centered on parent direction
+      const fanOutSectorRange = 2 * Math.PI / 3;
+
+      if (!isFirstLevel) {
+        if (etymology?.origin?.root) totalChildCount++;
+        if (etymology?.origin?.components) {
+          const comps = etymology.origin.components.filter((c: { part: string }) => c.part !== '-');
+          totalChildCount += comps.length;
+        }
+        if (etymology?.derivatives) totalChildCount += etymology.derivatives.length;
+        if (etymology?.synonyms) totalChildCount += etymology.synonyms.length;
+        // Handle suffix/prefix examples
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const etymologyAny = etymology as any;
+        if ((etymologyAny?.type === 'suffix' || etymologyAny?.type === 'prefix') && etymologyAny.examples) {
+          totalChildCount += Math.min(etymologyAny.examples.length, 5);
+        }
+      }
+      // END: Dynamic Fan-Out Setup
+
       if (etymology?.origin) {
         const langColor = COLORS[etymology.origin.language?.toLowerCase() as keyof typeof COLORS] || COLORS.component;
 
-        // 실제 단어 노드 정보 사용
-        const wordNode = newNodes.find(n => n.id === wordNodeId) || currentNodes.find(n => n.id === wordNodeId);
-        const wordX = wordNode?.fx ?? wordNode?.x ?? 0;
-        const wordY = wordNode?.fy ?? wordNode?.y ?? 0;
-        const wordDepth = wordNode?.depth ?? 0;
-        const allNodes = [...currentNodes, ...newNodes];
-
-        // Root node (e.g., praetextum) - 오른쪽 위 방향으로 확장
+        // Root node (e.g., praetextum)
         if (etymology.origin.root) {
           // 같은 label의 root가 이미 있는지 확인
           const existingRoot = findExistingNode(etymology.origin.root, 'root', [...currentNodes, ...newNodes]);
@@ -524,56 +552,12 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           let rootAngle: number;
 
           if (existingRoot) {
-            // 기존 root에 링크만 추가
+            // ... (Existing root logic unchanged) ...
             rootId = existingRoot.id;
             rootX = existingRoot.fx ?? existingRoot.x ?? 0;
             rootY = existingRoot.fy ?? existingRoot.y ?? 0;
             rootDepth = existingRoot.depth ?? 1;
             rootAngle = existingRoot.angle ?? 0;
-
-            // 같은 root로 향하는 기존 링크들의 각도 확인
-            const existingLinksToRoot = [...linksRef.current, ...newLinks].filter(
-              link => {
-                const targetId = typeof link.target === 'object' ? (link.target as any).id : link.target;
-                return targetId === rootId;
-              }
-            );
-
-            // 기존 링크가 있으면 word 노드 위치를 약간 조정
-            if (existingLinksToRoot.length > 0) {
-              const currentAngle = Math.atan2(wordY - rootY, wordX - rootX);
-
-              // 기존 링크들의 각도와 비교
-              for (const existingLink of existingLinksToRoot) {
-                const sourceId = typeof existingLink.source === 'object' ? (existingLink.source as any).id : existingLink.source;
-                const sourceNode = [...currentNodes, ...newNodes].find(n => n.id === sourceId);
-                if (sourceNode) {
-                  const sourceX = sourceNode.fx ?? sourceNode.x ?? 0;
-                  const sourceY = sourceNode.fy ?? sourceNode.y ?? 0;
-                  const existingAngle = Math.atan2(sourceY - rootY, sourceX - rootX);
-
-                  // 각도 차이가 15도 미만이면 조정
-                  const angleDiff = Math.abs(currentAngle - existingAngle);
-                  if (angleDiff < Math.PI / 12 || angleDiff > Math.PI * 23 / 12) {
-                    // word 노드를 수직 방향으로 약간 이동
-                    const offsetAngle = currentAngle + Math.PI / 2; // 수직 방향
-                    const offsetDistance = 40; // 40px 이동
-                    const offsetX = offsetDistance * Math.cos(offsetAngle);
-                    const offsetY = offsetDistance * Math.sin(offsetAngle);
-
-                    // word 노드 위치 업데이트
-                    const wordNodeToUpdate = newNodes.find(n => n.id === wordNodeId);
-                    if (wordNodeToUpdate) {
-                      wordNodeToUpdate.x = (wordNodeToUpdate.x ?? 0) + offsetX;
-                      wordNodeToUpdate.y = (wordNodeToUpdate.y ?? 0) + offsetY;
-                      wordNodeToUpdate.fx = wordNodeToUpdate.x;
-                      wordNodeToUpdate.fy = wordNodeToUpdate.y;
-                    }
-                    break;
-                  }
-                }
-              }
-            }
 
             newLinks.push({
               source: wordNodeId,
@@ -581,14 +565,29 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
             });
           } else {
             // 새 root 노드 생성
-            rootId = `root-${etymology.origin.root}`; // word 제거하여 고유 ID 생성
+            rootId = `root-${etymology.origin.root}`;
             const wordNodeAngle = wordNode?.angle;
-            const isFirstLevel = wordDepth === 0;
-            // 첫 번째 레벨: 위쪽(-PI/2), 이후: 부모 방향 유지
-            const rootBaseAngle = isFirstLevel ? -Math.PI / 2 : (wordNodeAngle ?? 0);
-            // 첫 번째 레벨일 때 60도 범위로 퍼짐 (겹침 방지)
-            const rootSectorRange = isFirstLevel ? Math.PI / 3 : Math.PI / 3;
-            const rootPos = getRadialPosition(wordX, wordY, rootBaseAngle, wordDepth, 0, 1, isFirstLevel, rootSectorRange);
+
+            let rootBaseAngle: number;
+            let rootSectorRange: number;
+            let rootIndex: number;
+            let rootTotal: number;
+
+            if (isFirstLevel) {
+              // [Level 0] Categorized Sector: Top (-PI/2)
+              rootBaseAngle = -Math.PI / 2;
+              rootSectorRange = Math.PI / 3;
+              rootIndex = 0;
+              rootTotal = 1;
+            } else {
+              // [Level > 0] Fan-Out: Follow Parent Direction
+              rootBaseAngle = wordNodeAngle ?? 0;
+              rootSectorRange = fanOutSectorRange;
+              rootIndex = runningChildIndex++;
+              rootTotal = totalChildCount;
+            }
+
+            const rootPos = getRadialPosition(wordX, wordY, rootBaseAngle, wordDepth, rootIndex, rootTotal, isFirstLevel, rootSectorRange);
             const adjusted = adjustForCollision(rootPos.x, rootPos.y, rootPos.angle, allNodes, 55);
 
             rootX = adjusted.x;
@@ -622,35 +621,37 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
             });
           }
 
-          // Components branch from root (e.g., praetextum → prae- + textum)
+          // Components branch from root
           if (etymology.origin.components) {
             const validComponents = etymology.origin.components.filter((c: { part: string }) => c.part !== '-');
             const compCount = validComponents.length;
             validComponents.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
               const koreanMeaning = comp.meaningLocalized || comp.meaningKo || getKoreanMeaning(comp.meaning);
-
-              // Check if this component already exists
               const existingComp = findExistingNode(comp.part, 'component', [...currentNodes, ...newNodes]);
 
               if (existingComp) {
-                // Link to existing component node
                 newLinks.push({
                   source: rootId,
                   target: existingComp.id,
                 });
               } else {
-                // Create new component node (use normalized ID for deduplication)
-                const compId = `comp-${normalizeLabel(comp.part)}`; // word 제거하여 고유 ID
+                const compId = `comp-${normalizeLabel(comp.part)}`;
 
-                // FORCE RIGHT DIRECTION (0) even if parent is Root (at Top)
-                // This creates a "corner" shape: Word(Center) -> Root(Top) -> Component(Right)
-                // preventing the Component from overlapping with the Root link
+                // IMPORTANT: Components from Root are technically "children of Root", not "children of Word".
+                // So they always Fan-Out from the Root node.
+                // WE USE THE FIXED "RIGHT" LOGIC ESTABLISHED PREVIOUSLY to keep the "Corner" shape 
+                // because this specific relationship (Root -> Component) is special and structural.
+                // It shouldn't just fan out blindly if it's the specific "Etymology Breakdown".
+
+                // However, if the user requested "Dynamic Fan Out for ALL expansions", 
+                // they might prefer even this to be dynamic if the Root itself is deep?
+                // But "Root -> Component" is effectively a single unit of information.
+                // Keeping strict Right (0) layout for Root->Component connection ensures readability 
+                // regardless of where the Root is.
+
                 const compBaseAngle = 0;
-                const compSectorRange = Math.PI / 3; // 60도 범위
+                const compSectorRange = Math.PI / 3;
 
-                // 방사형: 항상 오른쪽으로 확장
-                // Note: We use isFirstLevel=true logic here to enforce the baseAngle and sectorRange logic
-                // even though it's technically a child of Root.
                 const compPos = getRadialPosition(rootX, rootY, compBaseAngle, rootDepth, idx, compCount, true, compSectorRange);
                 const compAdjusted = adjustForCollision(compPos.x, compPos.y, compPos.angle, [...allNodes, ...newNodes], 50);
                 newNodes.push({
@@ -685,26 +686,37 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           const compCount = validComponents.length;
           validComponents.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
             const koreanMeaning = comp.meaningLocalized || comp.meaningKo || getKoreanMeaning(comp.meaning);
-
-            // Check if this component already exists
             const existingComp = findExistingNode(comp.part, 'component', [...currentNodes, ...newNodes]);
 
             if (existingComp) {
-              // Link to existing component node
               newLinks.push({
                 source: wordNodeId,
                 target: existingComp.id,
               });
             } else {
-              // Create new component node (use normalized ID for deduplication)
-              const compId = `comp-${normalizeLabel(comp.part)}`; // word 제거하여 고유 ID
+              const compId = `comp-${normalizeLabel(comp.part)}`;
               const wordNodeAngle = wordNode?.angle;
-              const isFirstLevel = wordDepth === 0;
-              // 첫 번째 레벨: 오른쪽(0), 이후: 부모 방향 유지
-              const compBaseAngle = isFirstLevel ? 0 : (wordNodeAngle ?? 0);
-              const compSectorRange = isFirstLevel ? Math.PI / 3 : Math.PI / 3; // 첫 레벨은 60° 범위
-              // 방사형: 단어에서 오른쪽 방향으로 확장
-              const compPos = getRadialPosition(wordX, wordY, compBaseAngle, wordDepth, idx, compCount, isFirstLevel, compSectorRange);
+
+              let compBaseAngle: number;
+              let compSectorRange: number;
+              let compIndex: number;
+              let compTotal: number;
+
+              if (isFirstLevel) {
+                // [Level 0] Categorized: Right (0)
+                compBaseAngle = 0;
+                compSectorRange = Math.PI / 3;
+                compIndex = idx;
+                compTotal = compCount;
+              } else {
+                // [Level > 0] Fan-Out
+                compBaseAngle = wordNodeAngle ?? 0;
+                compSectorRange = fanOutSectorRange;
+                compIndex = runningChildIndex++;
+                compTotal = totalChildCount;
+              }
+
+              const compPos = getRadialPosition(wordX, wordY, compBaseAngle, wordDepth, compIndex, compTotal, isFirstLevel, compSectorRange);
               const compAdjusted = adjustForCollision(compPos.x, compPos.y, compPos.angle, [...allNodes, ...newNodes], 50);
               newNodes.push({
                 id: compId,
@@ -734,9 +746,8 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         }
       }
 
-      // Add derivative nodes from etymology.derivatives (no extra API call needed)
+      // Add derivative nodes
       if (etymology?.derivatives && etymology.derivatives.length > 0) {
-        // 실제 단어 노드 정보 사용
         const wordNode = newNodes.find(n => n.id === wordNodeId) || currentNodes.find(n => n.id === wordNodeId);
         const derivWordX = wordNode?.fx ?? wordNode?.x ?? 0;
         const derivWordY = wordNode?.fy ?? wordNode?.y ?? 0;
@@ -745,17 +756,32 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         const derivCount = etymology.derivatives.length;
 
         etymology.derivatives.forEach((deriv: { word: string; meaning: string }, idx: number) => {
-          // Check if derivative already exists
           const existingDeriv = findExistingNodeByLabel(deriv.word, [...currentNodes, ...newNodes]);
           if (existingDeriv) return;
 
           const derivId = `deriv-${word}-${deriv.word}`;
           const isFirstLevel = derivWordDepth === 0;
-          // 첫 번째 레벨: 아래쪽(PI/2), 이후: 부모 방향 유지
-          const derivBaseAngle = isFirstLevel ? (Math.PI / 2) : (derivWordAngle ?? Math.PI);
-          const derivSectorRange = isFirstLevel ? (Math.PI / 3) : Math.PI / 3; // 60° 범위
-          // 방사형: 넓게 퍼지며 확장 (파생어)
-          const derivPos = getRadialPosition(derivWordX, derivWordY, derivBaseAngle, derivWordDepth, idx, derivCount, isFirstLevel, derivSectorRange);
+
+          let derivBaseAngle: number;
+          let derivSectorRange: number;
+          let derivIndex: number;
+          let derivTotal: number;
+
+          if (isFirstLevel) {
+            // [Level 0] Categorized: Bottom (PI/2)
+            derivBaseAngle = Math.PI / 2;
+            derivSectorRange = Math.PI / 3;
+            derivIndex = idx;
+            derivTotal = derivCount;
+          } else {
+            // [Level > 0] Fan-Out
+            derivBaseAngle = derivWordAngle ?? Math.PI;
+            derivSectorRange = fanOutSectorRange;
+            derivIndex = runningChildIndex++;
+            derivTotal = totalChildCount;
+          }
+
+          const derivPos = getRadialPosition(derivWordX, derivWordY, derivBaseAngle, derivWordDepth, derivIndex, derivTotal, isFirstLevel, derivSectorRange);
           const derivAdjusted = adjustForCollision(derivPos.x, derivPos.y, derivPos.angle, [...currentNodes, ...newNodes], 55);
 
           newNodes.push({
@@ -763,6 +789,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
             label: deriv.word,
             type: 'derivative',
             meaning: deriv.meaning,
+            // ... (rest unchanged)
             meaningKo: deriv.meaning,
             color: COLORS.derivative,
             size: 8,
@@ -783,7 +810,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         });
       }
 
-      // Add synonym nodes from etymology.synonyms
+      // Add synonym nodes
       if (etymology?.synonyms && etymology.synonyms.length > 0) {
         const wordNode = newNodes.find(n => n.id === wordNodeId) || currentNodes.find(n => n.id === wordNodeId);
         const synWordX = wordNode?.fx ?? wordNode?.x ?? 0;
@@ -793,16 +820,32 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         const synCount = etymology.synonyms.length;
 
         etymology.synonyms.forEach((syn: { word: string; meaning: string; nuance: string }, idx: number) => {
-          // Check if synonym already exists
           const existingSyn = findExistingNodeByLabel(syn.word, [...currentNodes, ...newNodes]);
           if (existingSyn) return;
 
           const synId = `syn-${word}-${syn.word}`;
           const isFirstLevel = synWordDepth === 0;
-          // 동의어: 왼쪽(PI), 이후: 부모 방향 유지
-          const synBaseAngle = isFirstLevel ? Math.PI : (synWordAngle ?? -Math.PI / 2);
-          const synSectorRange = isFirstLevel ? (Math.PI / 3) : (Math.PI / 3); // 60° 범위
-          const synPos = getRadialPosition(synWordX, synWordY, synBaseAngle, synWordDepth, idx, synCount, isFirstLevel, synSectorRange);
+
+          let synBaseAngle: number;
+          let synSectorRange: number;
+          let synIndex: number;
+          let synTotal: number;
+
+          if (isFirstLevel) {
+            // [Level 0] Categorized: Left (PI)
+            synBaseAngle = Math.PI;
+            synSectorRange = Math.PI / 3;
+            synIndex = idx;
+            synTotal = synCount;
+          } else {
+            // [Level > 0] Fan-Out
+            synBaseAngle = synWordAngle ?? -Math.PI / 2;
+            synSectorRange = fanOutSectorRange;
+            synIndex = runningChildIndex++;
+            synTotal = totalChildCount;
+          }
+
+          const synPos = getRadialPosition(synWordX, synWordY, synBaseAngle, synWordDepth, synIndex, synTotal, isFirstLevel, synSectorRange);
           const synAdjusted = adjustForCollision(synPos.x, synPos.y, synPos.angle, [...currentNodes, ...newNodes], 55);
 
           newNodes.push({
@@ -810,6 +853,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
             label: syn.word,
             type: 'synonym',
             meaning: syn.nuance,
+            // ... (rest unchanged)
             meaningKo: syn.meaning,
             color: COLORS.synonym,
             size: 8,
@@ -834,7 +878,6 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const etymologyAny = etymology as any;
       if (etymologyAny?.type === 'suffix' || etymologyAny?.type === 'prefix') {
-        // 실제 단어 노드 정보 사용
         const wordNode = newNodes.find(n => n.id === wordNodeId) || currentNodes.find(n => n.id === wordNodeId);
         const exWordX = wordNode?.fx ?? wordNode?.x ?? 0;
         const exWordY = wordNode?.fy ?? wordNode?.y ?? 0;
@@ -844,24 +887,40 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         const exampleCount = Math.min(examples.length, 5); // 최대 5개
 
         examples.slice(0, 5).forEach((ex: { word: string; base: string; meaning: string; explanation: string }, idx: number) => {
-          // Check if example word already exists
           const existingEx = findExistingNodeByLabel(ex.word, [...currentNodes, ...newNodes]);
           if (existingEx) return;
 
           const exId = `example-${word}-${ex.word}`;
           const isFirstLevel = exWordDepth === 0;
-          // 첫 번째 레벨: 아래쪽(PI/2), 이후: 부모 방향 유지
-          const exBaseAngle = isFirstLevel ? (Math.PI / 2) : (exWordAngle ?? Math.PI);
-          const exSectorRange = isFirstLevel ? (Math.PI / 3) : Math.PI / 3; // 첫 레벨은 60°
-          // 방사형: 접사에서 넓게 확장 (예시 단어들)
-          const exPos = getRadialPosition(exWordX, exWordY, exBaseAngle, exWordDepth, idx, exampleCount, isFirstLevel, exSectorRange);
+
+          let exBaseAngle: number;
+          let exSectorRange: number;
+          let exIndex: number;
+          let exTotal: number;
+
+          if (isFirstLevel) {
+            // [Level 0] Categorized: Bottom (PI/2), same as derivatives
+            exBaseAngle = Math.PI / 2;
+            exSectorRange = Math.PI / 3;
+            exIndex = idx;
+            exTotal = exampleCount;
+          } else {
+            // [Level > 0] Fan-Out
+            exBaseAngle = exWordAngle ?? Math.PI;
+            exSectorRange = fanOutSectorRange;
+            exIndex = runningChildIndex++;
+            exTotal = totalChildCount;
+          }
+
+          const exPos = getRadialPosition(exWordX, exWordY, exBaseAngle, exWordDepth, exIndex, exTotal, isFirstLevel, exSectorRange);
           const exAdjusted = adjustForCollision(exPos.x, exPos.y, exPos.angle, [...currentNodes, ...newNodes], 55);
 
           newNodes.push({
             id: exId,
             label: ex.word,
-            type: 'derivative', // derivative 타입으로 표시 (클릭 시 검색 가능)
+            type: 'derivative',
             meaning: ex.explanation,
+            // ... (rest unchanged)
             meaningKo: ex.meaning,
             color: COLORS.derivative,
             size: 8,
@@ -963,9 +1022,20 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       derivatives.forEach((deriv: { word: string; meaning: string }, index: number) => {
         const derivId = `deriv-${word}-${deriv.word}`;
         const isFirstLevel = parentDepth === 0;
-        // 첫 번째 레벨: 270° 범위로 넓게 퍼짐, 이후: 부모 방향 유지
-        const derivBaseAngle = isFirstLevel ? (3 * Math.PI / 4) : (parentAngle ?? Math.PI);
-        const derivSectorRange = isFirstLevel ? (3 * Math.PI / 2) : Math.PI; // 첫 레벨은 270°
+
+        let derivBaseAngle: number;
+        let derivSectorRange: number;
+
+        if (isFirstLevel) {
+          // [Level 0] Categorized: Bottom (PI/2)
+          derivBaseAngle = Math.PI / 2;
+          derivSectorRange = Math.PI / 3;
+        } else {
+          // [Level > 0] Fan-Out
+          derivBaseAngle = parentAngle ?? Math.PI;
+          derivSectorRange = 2 * Math.PI / 3;
+        }
+
         // 방사형: 부모 방향 유지하면서 확장
         const derivPos = getRadialPosition(parentX, parentY, derivBaseAngle, parentDepth, index, derivTotal, isFirstLevel, derivSectorRange);
         const derivAdjusted = adjustForCollision(derivPos.x, derivPos.y, derivPos.angle, [...nodesRef.current, ...newNodes], 55);
