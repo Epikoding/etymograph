@@ -637,22 +637,27 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
               } else {
                 const compId = `comp-${normalizeLabel(comp.part)}`;
 
-                // IMPORTANT: Components from Root are technically "children of Root", not "children of Word".
-                // So they always Fan-Out from the Root node.
-                // WE USE THE FIXED "RIGHT" LOGIC ESTABLISHED PREVIOUSLY to keep the "Corner" shape 
-                // because this specific relationship (Root -> Component) is special and structural.
-                // It shouldn't just fan out blindly if it's the specific "Etymology Breakdown".
+                // Components from Root logic:
+                // If Root is Level 0 (Depth 1), FORCE RIGHT (0) to create "Corner" shape (Top Root -> Right Comp).
+                // If Root is Deep (Depth > 1), Fan Out outward from Root to prevent overlap.
 
-                // However, if the user requested "Dynamic Fan Out for ALL expansions", 
-                // they might prefer even this to be dynamic if the Root itself is deep?
-                // But "Root -> Component" is effectively a single unit of information.
-                // Keeping strict Right (0) layout for Root->Component connection ensures readability 
-                // regardless of where the Root is.
+                const isLevel0Root = rootDepth <= 1;
+                let compBaseAngle: number;
+                let compSectorRange: number;
+                let compIsFirstLevelForPos: boolean;
 
-                const compBaseAngle = 0;
-                const compSectorRange = Math.PI / 3;
+                if (isLevel0Root) {
+                  compBaseAngle = 0;
+                  compSectorRange = Math.PI / 3;
+                  compIsFirstLevelForPos = true;
+                } else {
+                  compBaseAngle = rootAngle ?? 0;
+                  compSectorRange = fanOutSectorRange;
+                  compIsFirstLevelForPos = false; // Use standard spread
+                }
 
-                const compPos = getRadialPosition(rootX, rootY, compBaseAngle, rootDepth, idx, compCount, true, compSectorRange);
+                // 방사형: 루트 조건에 따라 확장
+                const compPos = getRadialPosition(rootX, rootY, compBaseAngle, rootDepth, idx, compCount, compIsFirstLevelForPos, compSectorRange);
                 const compAdjusted = adjustForCollision(compPos.x, compPos.y, compPos.angle, [...allNodes, ...newNodes], 50);
                 newNodes.push({
                   id: compId,
