@@ -65,6 +65,11 @@ func (h *WordHandler) Search(c *gin.Context) {
 
 	normalizedWord := strings.ToLower(strings.TrimSpace(req.Word))
 
+	// Save search history if user is authenticated
+	if userID, exists := c.Get("userID"); exists {
+		go h.saveSearchHistory(userID.(int64), normalizedWord, req.Language)
+	}
+
 	// Block invalid search term "-"
 	if normalizedWord == "-" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -497,5 +502,24 @@ func filterDerivativesInPlace(word string, etymology map[string]interface{}) {
 	// Check if derivatives exist at top level
 	if derivatives, ok := etymology["derivatives"].([]interface{}); ok {
 		etymology["derivatives"] = filter.FilterDerivatives(word, derivatives)
+	}
+}
+
+// saveSearchHistory saves a search to the user's history
+func (h *WordHandler) saveSearchHistory(userID int64, word string, language string) {
+	if language == "" {
+		language = "Korean"
+	}
+	langKey := getLanguageKey(language)
+
+	history := model.SearchHistory{
+		UserID:     userID,
+		Word:       word,
+		Language:   langKey,
+		SearchedAt: time.Now(),
+	}
+
+	if err := h.db.Create(&history).Error; err != nil {
+		log.Printf("Failed to save search history: %v", err)
 	}
 }

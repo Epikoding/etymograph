@@ -59,11 +59,11 @@
 ## 아키텍처
 
 ```
-Frontend (Next.js:3000) → API (NestJS:4000) → LLM Proxy (Go:8081) → Ollama (qwen3:8b)
-                                ↓                    ↓
-                           PostgreSQL              Redis
-                                ↑
-                        Rate Limiter (Go:8080)
+Frontend (Next.js:3000) → API (Go:4000) → LLM Proxy (Go:8081) → Gemini/Ollama
+                              ↓
+                           Redis ← 1차 캐시
+                              ↓
+                         PostgreSQL ← 2차 캐시 + 사용자 데이터
 ```
 
 ## 로컬 개발
@@ -98,21 +98,45 @@ make dev-llm       # LLM Proxy only
 - LLM Proxy: http://localhost:8081
 - Rate Limiter: http://localhost:8080
 
+## Kubernetes 배포 (선택)
+
+### 시크릿 설정
+
+```bash
+cd k8s
+
+# example에서 secrets.yaml 생성
+cp base/secrets.yaml.example base/secrets.yaml
+
+# 실제 값으로 수정
+# - CHANGE_ME_POSTGRES_PASSWORD → 안전한 비밀번호
+# - CHANGE_ME_GEMINI_API_KEY → Gemini API 키
+vi base/secrets.yaml
+```
+
+### 배포
+
+```bash
+cd k8s
+./deploy.sh
+```
+
 ## 프로젝트 구조
 
 ```
 etymograph/
-├── frontend/          # Next.js 15
-├── api/               # NestJS 10
-├── llm-proxy/         # Go 1.22
-├── rate-limiter/      # Go 1.22
+├── frontend/          # Next.js 15 (TypeScript, Tailwind CSS)
+├── api-go/            # Go 1.23 (Gin, GORM)
+├── llm-proxy/         # Go 1.22 (Gemini/Ollama 연동)
+├── rate-limiter/      # Go 1.22 (Token Bucket)
 ├── k8s/               # Kubernetes manifests
 ├── docker-compose.yml
-├── Makefile
 └── README.md
 ```
 
 ## API Endpoints
+
+### 단어 API
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -125,14 +149,72 @@ etymograph/
 | POST | /api/sessions/:id/words | 세션에 단어 추가 |
 | GET | /api/export/:sessionId | Export (format=json\|csv\|md) |
 
+### 인증 API (OAuth 2.0 + JWT)
+
+| Method | Endpoint | Description | 인증 |
+|--------|----------|-------------|------|
+| GET | /auth/google | Google OAuth URL 반환 | X |
+| GET | /auth/google/callback | OAuth 콜백 처리 | X |
+| POST | /auth/refresh | Access Token 갱신 | X |
+| POST | /auth/logout | 로그아웃 (Refresh Token 무효화) | O |
+| GET | /auth/me | 현재 사용자 정보 | O |
+
+### 검색 히스토리 API
+
+| Method | Endpoint | Description | 인증 |
+|--------|----------|-------------|------|
+| GET | /api/history?page=1&limit=20 | 검색 히스토리 조회 (페이지네이션) | O |
+| GET | /api/history/dates | 날짜별 히스토리 요약 목록 | O |
+| GET | /api/history/dates/:date | 특정 날짜 검색어 목록 (YYYY-MM-DD) | O |
+| DELETE | /api/history/:id | 특정 히스토리 삭제 | O |
+| DELETE | /api/history | 전체 히스토리 삭제 | O |
+
+## 환경 변수
+
+### Backend (API)
+
+```bash
+# Database
+DATABASE_URL=postgres://etymograph:etymograph@postgres:5432/etymograph?sslmode=disable
+
+# Redis
+REDIS_URL=redis://redis:6379
+
+# LLM
+LLM_PROXY_URL=http://llm-proxy:8081
+
+# JWT & OAuth (Google)
+JWT_SECRET=your-256-bit-secret-change-in-production
+GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=xxx
+GOOGLE_REDIRECT_URL=http://localhost:4000/auth/google/callback
+FRONTEND_URL=http://localhost:3000
+```
+
+### Frontend
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:4000
+```
+
+### Google OAuth 설정
+
+1. [Google Cloud Console](https://console.cloud.google.com/) 접속
+2. OAuth 2.0 클라이언트 ID 생성 (웹 애플리케이션)
+3. 승인된 리디렉션 URI 추가:
+   - 개발: `http://localhost:4000/auth/google/callback`
+   - 운영: `https://your-domain.com/auth/google/callback`
+4. 발급된 Client ID와 Secret을 환경 변수에 설정
+
 ## 기술 스택
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Next.js 15, React 19, TailwindCSS, react-force-graph |
-| API | NestJS 10, Prisma, TypeScript |
+| Frontend | Next.js 15, React 19, TailwindCSS, react-force-graph-2d |
+| API | Go 1.23, Gin, GORM |
 | LLM Proxy | Go 1.22, Gin |
 | Rate Limiter | Go 1.22, Token Bucket |
 | Database | PostgreSQL 16, Redis 7 |
-| LLM | Ollama + Qwen3:8b |
-| Infra | k3s, Traefik |
+| LLM | Gemini API / Ollama (Qwen3:8b) |
+| Auth | Google OAuth 2.0, JWT |
+| Infra | Docker Compose, k3s (optional) |

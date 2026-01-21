@@ -1,4 +1,5 @@
 import type { Word, Session, SessionGraph, DerivativesData, SynonymsData } from '@/types/word';
+import type { SearchHistoryResponse, HistoryDatesResponse, HistoryDateDetailResponse } from '@/types/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -22,9 +23,15 @@ export class ApiError extends Error {
 class ApiClient {
   private baseUrl: string;
   private _language: SupportedLanguage = 'Korean';
+  private _getAccessToken: (() => string | null) | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+  }
+
+  // Set the function to get access token from auth context
+  setTokenGetter(getter: () => string | null): void {
+    this._getAccessToken = getter;
   }
 
   // Get/Set current language
@@ -36,11 +43,20 @@ class ApiClient {
     this._language = lang;
   }
 
+  private getAuthHeaders(): Record<string, string> {
+    const token = this._getAccessToken?.();
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+    return {};
+  }
+
   private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${this.baseUrl}/api${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
         ...options?.headers,
       },
     });
@@ -157,6 +173,32 @@ class ApiClient {
   // Export
   getExportUrl(sessionId: string, format: 'json' | 'csv' | 'md'): string {
     return `${this.baseUrl}/api/export/${sessionId}?format=${format}`;
+  }
+
+  // Search History
+  async getSearchHistory(page: number = 1, limit: number = 20): Promise<SearchHistoryResponse> {
+    return this.fetch<SearchHistoryResponse>(`/history?page=${page}&limit=${limit}`);
+  }
+
+  async deleteSearchHistory(id: number): Promise<{ message: string }> {
+    return this.fetch<{ message: string }>(`/history/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteAllSearchHistory(): Promise<{ message: string; count: number }> {
+    return this.fetch<{ message: string; count: number }>('/history', {
+      method: 'DELETE',
+    });
+  }
+
+  // History by date
+  async getHistoryDates(): Promise<HistoryDatesResponse> {
+    return this.fetch<HistoryDatesResponse>('/history/dates');
+  }
+
+  async getHistoryDateDetail(date: string): Promise<HistoryDateDetailResponse> {
+    return this.fetch<HistoryDateDetailResponse>(`/history/dates/${date}`);
   }
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import EtymologyGraph from '@/components/EtymologyGraph';
 import AnimatedGraphBackground from '@/components/AnimatedGraphBackground';
@@ -9,7 +10,9 @@ import { api } from '@/lib/api';
 
 const EXAMPLE_WORDS = ['philosophy', 'transport', 'manuscript', 'telegraph', 'democracy', 'biology'];
 
-export default function Home() {
+function HomeContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [searchedWord, setSearchedWord] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -18,6 +21,39 @@ export default function Home() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Helper function to search a word and update URL
+  const searchWord = useCallback((word: string) => {
+    setQuery(word);
+    setShowSuggestions(false);
+    setLoading(true);
+    setSearchedWord(word);
+    // Update URL so logo click can detect the change
+    router.push(`/?word=${encodeURIComponent(word)}`, { scroll: false });
+  }, [router]);
+
+  // Handle URL query parameter for word search (e.g., /?word=teacher)
+  useEffect(() => {
+    const wordFromUrl = searchParams.get('word');
+
+    console.log('[DEBUG] useEffect triggered:', {
+      wordFromUrl,
+      searchedWord
+    });
+
+    if (wordFromUrl && wordFromUrl !== searchedWord) {
+      // URL has word param that differs from current - trigger search
+      console.log('[DEBUG] Setting word from URL:', wordFromUrl);
+      setQuery(wordFromUrl);
+      setLoading(true);
+      setSearchedWord(wordFromUrl);
+    } else if (!wordFromUrl && searchedWord) {
+      // URL has no word param but we have a searched word - reset to landing page
+      console.log('[DEBUG] Resetting to landing page');
+      setSearchedWord(null);
+      setQuery('');
+    }
+  }, [searchParams, searchedWord]);
 
   // Helper to get all suggestions as a flat array for keyboard navigation
   const allSuggestions = [...suggestions.priority, ...suggestions.general];
@@ -88,11 +124,7 @@ export default function Home() {
         case 'Enter':
           if (selectedIndex >= 0) {
             e.preventDefault();
-            const word = allSuggestions[selectedIndex];
-            setQuery(word);
-            setShowSuggestions(false);
-            setLoading(true);
-            setSearchedWord(word);
+            searchWord(allSuggestions[selectedIndex]);
           }
           break;
         case 'Escape':
@@ -101,23 +133,18 @@ export default function Home() {
           break;
       }
     },
-    [showSuggestions, hasSuggestions, allSuggestions, selectedIndex]
+    [showSuggestions, hasSuggestions, allSuggestions, selectedIndex, searchWord]
   );
 
   const handleSuggestionClick = (word: string) => {
-    setQuery(word);
-    setShowSuggestions(false);
-    setLoading(true);
-    setSearchedWord(word);
+    searchWord(word);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
-    setShowSuggestions(false);
     setSuggestions({ priority: [], general: [] });
-    setLoading(true);
-    setSearchedWord(query.trim().toLowerCase());
+    searchWord(query.trim().toLowerCase());
   };
 
   const handleWordSelect = (_word: string) => {
@@ -126,9 +153,7 @@ export default function Home() {
   };
 
   const handleExampleClick = (word: string) => {
-    setLoading(true);
-    setQuery(word);
-    setSearchedWord(word);
+    searchWord(word);
   };
 
   const handleInitialLoad = () => {
@@ -136,8 +161,7 @@ export default function Home() {
   };
 
   const handleBackToHome = () => {
-    setSearchedWord(null);
-    setQuery('');
+    router.push('/');
   };
 
   // Landing page with animated background
@@ -417,5 +441,13 @@ export default function Home() {
         />
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="h-[calc(100vh-64px)] flex items-center justify-center"><LoadingSpinner size="lg" /></div>}>
+      <HomeContent />
+    </Suspense>
   );
 }

@@ -7,11 +7,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/etymograph/api/internal/auth"
 	"github.com/etymograph/api/internal/cache"
 	"github.com/etymograph/api/internal/client"
 	"github.com/etymograph/api/internal/config"
 	"github.com/etymograph/api/internal/database"
 	"github.com/etymograph/api/internal/handler"
+	"github.com/etymograph/api/internal/middleware"
 	"github.com/etymograph/api/internal/scheduler"
 	"github.com/etymograph/api/internal/validator"
 	"github.com/gin-gonic/gin"
@@ -52,10 +54,15 @@ func main() {
 		// Continue without validator (fail-open)
 	}
 
+	// Initialize Google OAuth config
+	var googleConfig = auth.NewGoogleOAuthConfig(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
+
 	// Initialize handlers
 	wordHandler := handler.NewWordHandler(db, redisCache, cfg, wordValidator)
 	sessionHandler := handler.NewSessionHandler(db)
 	exportHandler := handler.NewExportHandler(db)
+	authHandler := handler.NewAuthHandler(db, cfg.JWTSecret, googleConfig, cfg.FrontendURL)
+	historyHandler := handler.NewHistoryHandler(db)
 
 	// Initialize and start background scheduler if enabled
 	var etymologyScheduler *scheduler.EtymologyScheduler
@@ -105,12 +112,22 @@ func main() {
 		}
 	})
 
+	// Auth routes (public)
+	authGroup := r.Group("/auth")
+	{
+		authGroup.GET("/google", authHandler.GoogleAuth)
+		authGroup.GET("/google/callback", authHandler.GoogleCallback)
+		authGroup.POST("/refresh", authHandler.RefreshToken)
+		authGroup.POST("/logout", authHandler.Logout)
+		authGroup.GET("/me", middleware.AuthMiddleware(cfg.JWTSecret), authHandler.Me)
+	}
+
 	// API routes
 	api := r.Group("/api")
 	{
-		// Words
+		// Words (with optional auth for history tracking)
 		api.GET("/words/suggest", wordHandler.Suggest)
-		api.POST("/words/search", wordHandler.Search)
+		api.POST("/words/search", middleware.OptionalAuthMiddleware(cfg.JWTSecret), wordHandler.Search)
 		api.GET("/words/:word/etymology", wordHandler.GetEtymology)
 		api.GET("/words/:word/derivatives", wordHandler.GetDerivatives)
 		api.GET("/words/:word/synonyms", wordHandler.GetSynonyms)
@@ -126,6 +143,16 @@ func main() {
 
 		// Export
 		api.GET("/export/:sessionId", exportHandler.Export)
+
+		// History (requires auth)
+		historyGroup := api.Group("/history", middleware.AuthMiddleware(cfg.JWTSecret))
+		{
+			historyGroup.GET("", historyHandler.List)
+			historyGroup.GET("/dates", historyHandler.ListDates)
+			historyGroup.GET("/dates/:date", historyHandler.GetDateDetail)
+			historyGroup.DELETE("/:id", historyHandler.Delete)
+			historyGroup.DELETE("", historyHandler.DeleteAll)
+		}
 	}
 
 	port := os.Getenv("PORT")

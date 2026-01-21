@@ -26,6 +26,11 @@ services:
       - PORT=4000
       - SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-false}
       - SCHEDULER_INTERVAL=${SCHEDULER_INTERVAL:-5s}
+      - JWT_SECRET=${JWT_SECRET:-your-256-bit-secret-change-in-production}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL:-http://localhost:4000/auth/google/callback}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { AuthProvider } from '@/lib/auth-context';
+import Header from '@/components/Header';
 
 export const metadata: Metadata = {
   title: 'EtymoGraph - Etymology Explorer',
@@ -14,20 +16,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="antialiased bg-slate-950 text-slate-100">
-        <div className="min-h-screen">
-          <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between items-center h-16">
-                <a href="/" className="flex items-center space-x-2">
-                  <span className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                    EtymoGraph
-                  </span>
-                </a>
-              </div>
-            </div>
-          </header>
-          <main>{children}</main>
-        </div>
+        <AuthProvider>
+          <div className="min-h-screen">
+            <Header />
+            <main>{children}</main>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );

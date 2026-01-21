@@ -1565,7 +1565,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                           <span className="text-purple-300 font-medium">{synonym.word}</span>
                           <span className="text-slate-400 text-sm">{synonym.meaning}</span>
                         </div>
-                        <p className="text-xs text-slate-400 italic">{synonym.nuance}</p>
+                        <p className="text-xs text-slate-400">{synonym.nuance}</p>
                       </div>
                     ))}
                   </div>

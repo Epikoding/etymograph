@@ -43,3 +43,13 @@ prisma/migrations/
 # Temporary
 tmp/
 temp/
+
+# MCP tools
+.playwright-mcp/
+.serena/
+
+# Claude Code
+CLAUDE.md
+
+# Kubernetes secrets (use secrets.yaml.example as template)
+k8s/base/secrets.yaml
