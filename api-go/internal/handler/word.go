@@ -430,7 +430,7 @@ func (h *WordHandler) RevertEtymology(c *gin.Context) {
 func (h *WordHandler) Suggest(c *gin.Context) {
 	query := strings.ToLower(strings.TrimSpace(c.Query("q")))
 	if len(query) < 2 {
-		c.JSON(http.StatusOK, gin.H{"suggestions": []string{}})
+		c.JSON(http.StatusOK, gin.H{"suggestions": gin.H{"priority": []string{}, "general": []string{}}})
 		return
 	}
 
@@ -442,18 +442,50 @@ func (h *WordHandler) Suggest(c *gin.Context) {
 	}
 
 	if h.cache == nil {
-		c.JSON(http.StatusOK, gin.H{"suggestions": []string{}})
+		c.JSON(http.StatusOK, gin.H{"suggestions": gin.H{"priority": []string{}, "general": []string{}}})
 		return
 	}
 
-	suggestions, err := h.cache.GetSuggestions(c.Request.Context(), query, limit)
+	ctx := c.Request.Context()
+
+	// Get priority suggestions (max 3)
+	priorityLimit := 3
+	prioritySuggestions, err := h.cache.GetPrioritySuggestions(ctx, query, priorityLimit)
+	if err != nil {
+		log.Printf("Redis priority suggest error: %v", err)
+		prioritySuggestions = []string{}
+	}
+
+	// Create a set of priority words for deduplication
+	prioritySet := make(map[string]bool)
+	for _, word := range prioritySuggestions {
+		prioritySet[word] = true
+	}
+
+	// Get general suggestions
+	generalSuggestions, err := h.cache.GetSuggestions(ctx, query, limit+priorityLimit)
 	if err != nil {
 		log.Printf("Redis suggest error: %v", err)
-		c.JSON(http.StatusOK, gin.H{"suggestions": []string{}})
-		return
+		generalSuggestions = []string{}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"suggestions": suggestions})
+	// Filter out priority words from general suggestions
+	filteredGeneral := make([]string, 0, len(generalSuggestions))
+	for _, word := range generalSuggestions {
+		if !prioritySet[word] {
+			filteredGeneral = append(filteredGeneral, word)
+		}
+	}
+
+	// Limit general suggestions
+	if len(filteredGeneral) > limit-len(prioritySuggestions) {
+		filteredGeneral = filteredGeneral[:limit-len(prioritySuggestions)]
+	}
+
+	c.JSON(http.StatusOK, gin.H{"suggestions": gin.H{
+		"priority": prioritySuggestions,
+		"general":  filteredGeneral,
+	}})
 }
 
 // filterDerivativesInPlace removes grammatical variations of the input word from etymology derivatives.

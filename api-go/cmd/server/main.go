@@ -39,9 +39,10 @@ func main() {
 		// Continue without Redis cache (fail-open)
 	}
 
-	// Load words.txt into Redis for autocomplete
+	// Load words.txt and priority_words.txt into Redis for autocomplete
 	if redisCache != nil {
 		go loadWordsToRedis(redisCache, "data/words.txt")
+		go loadPriorityWordsToRedis(redisCache, "data/priority_words.txt")
 	}
 
 	// Initialize word validator
@@ -184,4 +185,52 @@ func loadWordsToRedis(redisCache *cache.RedisCache, wordListPath string) {
 	}
 
 	log.Printf("Loaded %d words to Redis autocomplete", len(words))
+}
+
+// loadPriorityWordsToRedis loads priority words from a file into Redis for autocomplete
+func loadPriorityWordsToRedis(redisCache *cache.RedisCache, wordListPath string) {
+	ctx := context.Background()
+
+	// Check if priority autocomplete data already exists
+	count, err := redisCache.GetPriorityAutocompleteCount(ctx)
+	if err == nil && count > 0 {
+		log.Printf("Priority autocomplete already populated with %d words, skipping load", count)
+		return
+	}
+
+	file, err := os.Open(wordListPath)
+	if err != nil {
+		log.Printf("Warning: Failed to open priority word list for autocomplete: %v", err)
+		return
+	}
+	defer file.Close()
+
+	var words []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		word := strings.ToLower(strings.TrimSpace(scanner.Text()))
+		if word != "" {
+			words = append(words, word)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("Warning: Error reading priority word list: %v", err)
+		return
+	}
+
+	// Batch insert words in chunks to avoid memory issues
+	const batchSize = 1000
+	for i := 0; i < len(words); i += batchSize {
+		end := i + batchSize
+		if end > len(words) {
+			end = len(words)
+		}
+		if err := redisCache.AddPriorityWordsToAutocomplete(ctx, words[i:end]); err != nil {
+			log.Printf("Warning: Failed to add words to Redis priority autocomplete: %v", err)
+			return
+		}
+	}
+
+	log.Printf("Loaded %d words to Redis priority autocomplete", len(words))
 }

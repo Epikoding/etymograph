@@ -66,17 +66,21 @@ class ApiClient {
   }
 
   // Autocomplete suggestions
-  async getSuggestions(query: string, limit: number = 8): Promise<string[]> {
-    if (query.length < 2) return [];
+  async getSuggestions(query: string, limit: number = 8): Promise<{ priority: string[]; general: string[] }> {
+    const emptyResult = { priority: [], general: [] };
+    if (query.length < 2) return emptyResult;
     try {
       const response = await fetch(
         `${this.baseUrl}/api/words/suggest?q=${encodeURIComponent(query)}&limit=${limit}`
       );
-      if (!response.ok) return [];
+      if (!response.ok) return emptyResult;
       const data = await response.json();
-      return data.suggestions || [];
+      return {
+        priority: data.suggestions?.priority || [],
+        general: data.suggestions?.general || [],
+      };
     } catch {
-      return [];
+      return emptyResult;
     }
   }
 

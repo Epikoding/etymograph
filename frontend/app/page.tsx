@@ -13,18 +13,22 @@ export default function Home() {
   const [query, setQuery] = useState('');
   const [searchedWord, setSearchedWord] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<{ priority: string[]; general: string[] }>({ priority: [], general: [] });
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Helper to get all suggestions as a flat array for keyboard navigation
+  const allSuggestions = [...suggestions.priority, ...suggestions.general];
+  const hasSuggestions = allSuggestions.length > 0;
 
   // Debounced fetch suggestions
   useEffect(() => {
     // Don't fetch suggestions while loading or if query matches searchedWord
     const queryNormalized = query.trim().toLowerCase();
     if (query.length < 2 || loading || queryNormalized === searchedWord) {
-      setSuggestions([]);
+      setSuggestions({ priority: [], general: [] });
       setShowSuggestions(false);
       return;
     }
@@ -35,37 +39,47 @@ export default function Home() {
       const results = await api.getSuggestions(query);
       setSuggestions(results);
       setSelectedIndex(-1);
-      setShowSuggestions(results.length > 0);
+      setShowSuggestions(results.priority.length > 0 || results.general.length > 0);
     }, 300);
 
     return () => clearTimeout(timer);
   }, [query, loading, searchedWord]);
 
-  // Close suggestions when clicking outside
+  // Close suggestions when clicking outside or pressing Escape
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        suggestionsRef.current &&
-        !suggestionsRef.current.contains(e.target as Node) &&
-        inputRef.current &&
-        !inputRef.current.contains(e.target as Node)
-      ) {
+      const target = e.target as Node;
+      const clickedInSuggestions = suggestionsRef.current?.contains(target) ?? false;
+      const clickedInInput = inputRef.current?.contains(target) ?? false;
+
+      if (showSuggestions && !clickedInSuggestions && !clickedInInput) {
         setShowSuggestions(false);
       }
     };
 
+    const handleEscapeKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showSuggestions) {
+        setShowSuggestions(false);
+        setSelectedIndex(-1);
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [showSuggestions]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (!showSuggestions || suggestions.length === 0) return;
+      if (!showSuggestions || !hasSuggestions) return;
 
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
+          setSelectedIndex((prev) => (prev < allSuggestions.length - 1 ? prev + 1 : prev));
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -74,7 +88,7 @@ export default function Home() {
         case 'Enter':
           if (selectedIndex >= 0) {
             e.preventDefault();
-            const word = suggestions[selectedIndex];
+            const word = allSuggestions[selectedIndex];
             setQuery(word);
             setShowSuggestions(false);
             setLoading(true);
@@ -87,7 +101,7 @@ export default function Home() {
           break;
       }
     },
-    [showSuggestions, suggestions, selectedIndex]
+    [showSuggestions, hasSuggestions, allSuggestions, selectedIndex]
   );
 
   const handleSuggestionClick = (word: string) => {
@@ -101,7 +115,7 @@ export default function Home() {
     e.preventDefault();
     if (!query.trim()) return;
     setShowSuggestions(false);
-    setSuggestions([]);
+    setSuggestions({ priority: [], general: [] });
     setLoading(true);
     setSearchedWord(query.trim().toLowerCase());
   };
@@ -167,7 +181,7 @@ export default function Home() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                  onFocus={() => hasSuggestions && setShowSuggestions(true)}
                   placeholder="영어 단어를 입력하세요..."
                   className="w-full px-6 py-4 pl-12 text-lg text-white bg-slate-800/80 backdrop-blur-sm border border-slate-600 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all placeholder-slate-400"
                   autoComplete="off"
@@ -186,26 +200,53 @@ export default function Home() {
                 </button>
 
                 {/* Autocomplete Dropdown */}
-                {showSuggestions && suggestions.length > 0 && (
+                {showSuggestions && hasSuggestions && (
                   <div
                     ref={suggestionsRef}
                     className="absolute top-full left-0 right-0 mt-2 bg-slate-800/95 backdrop-blur-sm border border-slate-600 rounded-xl overflow-hidden shadow-xl z-50"
                   >
-                    {suggestions.map((word, index) => (
+                    {/* Priority suggestions */}
+                    {suggestions.priority.map((word, index) => (
                       <button
-                        key={word}
+                        key={`priority-${word}`}
                         type="button"
                         onClick={() => handleSuggestionClick(word)}
-                        className={`w-full px-6 py-3 text-left text-white transition-colors ${
+                        className={`w-full px-6 py-3 text-left text-white transition-colors flex items-center gap-2 ${
                           index === selectedIndex
                             ? 'bg-indigo-600'
-                            : 'hover:bg-slate-700'
+                            : 'bg-amber-900/30 hover:bg-amber-900/50'
                         }`}
                       >
-                        <span className="text-indigo-400">{word.slice(0, query.length)}</span>
-                        <span>{word.slice(query.length)}</span>
+                        <span className="text-amber-400 text-xs">★</span>
+                        <span>
+                          <span className="text-indigo-400">{word.slice(0, query.length)}</span>
+                          <span>{word.slice(query.length)}</span>
+                        </span>
                       </button>
                     ))}
+                    {/* Divider between priority and general */}
+                    {suggestions.priority.length > 0 && suggestions.general.length > 0 && (
+                      <div className="border-t border-slate-600 my-1" />
+                    )}
+                    {/* General suggestions */}
+                    {suggestions.general.map((word, index) => {
+                      const actualIndex = suggestions.priority.length + index;
+                      return (
+                        <button
+                          key={`general-${word}`}
+                          type="button"
+                          onClick={() => handleSuggestionClick(word)}
+                          className={`w-full px-6 py-3 text-left text-white transition-colors ${
+                            actualIndex === selectedIndex
+                              ? 'bg-indigo-600'
+                              : 'hover:bg-slate-700'
+                          }`}
+                        >
+                          <span className="text-indigo-400">{word.slice(0, query.length)}</span>
+                          <span>{word.slice(query.length)}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -275,11 +316,12 @@ export default function Home() {
           <form onSubmit={handleSearch} className="flex-1">
             <div className="relative">
               <input
+                ref={inputRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                onFocus={() => hasSuggestions && setShowSuggestions(true)}
                 placeholder="다른 단어 검색..."
                 className="w-full px-4 py-2 pl-10 text-white bg-slate-800 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-colors placeholder-slate-500"
                 autoComplete="off"
@@ -298,26 +340,53 @@ export default function Home() {
               </button>
 
               {/* Autocomplete Dropdown */}
-              {showSuggestions && suggestions.length > 0 && (
+              {showSuggestions && hasSuggestions && (
                 <div
                   ref={suggestionsRef}
                   className="absolute top-full left-0 right-0 mt-1 bg-slate-800/95 backdrop-blur-sm border border-slate-600 rounded-lg overflow-hidden shadow-xl z-50"
                 >
-                  {suggestions.map((word, index) => (
+                  {/* Priority suggestions */}
+                  {suggestions.priority.map((word, index) => (
                     <button
-                      key={word}
+                      key={`priority-${word}`}
                       type="button"
                       onClick={() => handleSuggestionClick(word)}
-                      className={`w-full px-4 py-2 text-left text-white text-sm transition-colors ${
+                      className={`w-full px-4 py-2 text-left text-white text-sm transition-colors flex items-center gap-2 ${
                         index === selectedIndex
                           ? 'bg-indigo-600'
-                          : 'hover:bg-slate-700'
+                          : 'bg-amber-900/30 hover:bg-amber-900/50'
                       }`}
                     >
-                      <span className="text-indigo-400">{word.slice(0, query.length)}</span>
-                      <span>{word.slice(query.length)}</span>
+                      <span className="text-amber-400 text-xs">★</span>
+                      <span>
+                        <span className="text-indigo-400">{word.slice(0, query.length)}</span>
+                        <span>{word.slice(query.length)}</span>
+                      </span>
                     </button>
                   ))}
+                  {/* Divider between priority and general */}
+                  {suggestions.priority.length > 0 && suggestions.general.length > 0 && (
+                    <div className="border-t border-slate-600 my-1" />
+                  )}
+                  {/* General suggestions */}
+                  {suggestions.general.map((word, index) => {
+                    const actualIndex = suggestions.priority.length + index;
+                    return (
+                      <button
+                        key={`general-${word}`}
+                        type="button"
+                        onClick={() => handleSuggestionClick(word)}
+                        className={`w-full px-4 py-2 text-left text-white text-sm transition-colors ${
+                          actualIndex === selectedIndex
+                            ? 'bg-indigo-600'
+                            : 'hover:bg-slate-700'
+                        }`}
+                      >
+                        <span className="text-indigo-400">{word.slice(0, query.length)}</span>
+                        <span>{word.slice(query.length)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -326,7 +395,14 @@ export default function Home() {
       </div>
 
       {/* Graph View */}
-      <div className="flex-1 relative">
+      <div
+        className="flex-1 relative"
+        onClick={() => {
+          if (showSuggestions) {
+            setShowSuggestions(false);
+          }
+        }}
+      >
         {/* Loading Overlay */}
         {loading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900">

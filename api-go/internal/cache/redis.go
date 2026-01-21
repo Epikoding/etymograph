@@ -90,3 +90,36 @@ func (c *RedisCache) GetSuggestions(ctx context.Context, prefix string, limit in
 func (c *RedisCache) GetAutocompleteCount(ctx context.Context) (int64, error) {
 	return c.client.ZCard(ctx, AutocompleteKey).Result()
 }
+
+// AutocompletePriorityKey is the Redis Sorted Set key for priority autocomplete words
+const AutocompletePriorityKey = "autocomplete:priority"
+
+// AddPriorityWordsToAutocomplete adds multiple words to the priority autocomplete sorted set in batch
+func (c *RedisCache) AddPriorityWordsToAutocomplete(ctx context.Context, words []string) error {
+	if len(words) == 0 {
+		return nil
+	}
+
+	members := make([]redis.Z, len(words))
+	for i, word := range words {
+		members[i] = redis.Z{Score: 0, Member: strings.ToLower(word)}
+	}
+
+	return c.client.ZAdd(ctx, AutocompletePriorityKey, members...).Err()
+}
+
+// GetPrioritySuggestions returns priority words matching the given prefix using lexicographic range
+func (c *RedisCache) GetPrioritySuggestions(ctx context.Context, prefix string, limit int) ([]string, error) {
+	prefix = strings.ToLower(prefix)
+	return c.client.ZRangeByLex(ctx, AutocompletePriorityKey, &redis.ZRangeBy{
+		Min:    "[" + prefix,
+		Max:    "[" + prefix + "\xff",
+		Offset: 0,
+		Count:  int64(limit),
+	}).Result()
+}
+
+// GetPriorityAutocompleteCount returns the number of words in the priority autocomplete set
+func (c *RedisCache) GetPriorityAutocompleteCount(ctx context.Context) (int64, error) {
+	return c.client.ZCard(ctx, AutocompletePriorityKey).Result()
+}
