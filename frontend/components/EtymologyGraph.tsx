@@ -195,7 +195,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       graphRef.current.d3Force('charge')?.strength((node: any) => node.fx !== undefined ? 0 : -60);
 
       // link force: 매우 약하게 (고정된 노드들을 움직이지 않도록)
-      graphRef.current.d3Force('link')?.distance(48).strength(0.05);
+      graphRef.current.d3Force('link')?.distance(58).strength(0.05);
 
       // 노드 겹침 방지: fx와 fy 모두 고정된 노드는 제외
       graphRef.current.d3Force('collision', forceCollide((node: any) => {
