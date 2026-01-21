@@ -584,9 +584,11 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
             rootId = `root-${etymology.origin.root}`; // word 제거하여 고유 ID 생성
             const wordNodeAngle = wordNode?.angle;
             const isFirstLevel = wordDepth === 0;
-            // 첫 번째 레벨: 오른쪽 위(angle=-PI/4), 이후: 부모 방향 유지
-            const rootBaseAngle = isFirstLevel ? -Math.PI / 4 : (wordNodeAngle ?? 0);
-            const rootPos = getRadialPosition(wordX, wordY, rootBaseAngle, wordDepth, 0, 1, isFirstLevel);
+            // 첫 번째 레벨: 위쪽(-PI/2), 이후: 부모 방향 유지
+            const rootBaseAngle = isFirstLevel ? -Math.PI / 2 : (wordNodeAngle ?? 0);
+            // 첫 번째 레벨일 때 60도 범위로 퍼짐 (겹침 방지)
+            const rootSectorRange = isFirstLevel ? Math.PI / 3 : Math.PI / 3;
+            const rootPos = getRadialPosition(wordX, wordY, rootBaseAngle, wordDepth, 0, 1, isFirstLevel, rootSectorRange);
             const adjusted = adjustForCollision(rootPos.x, rootPos.y, rootPos.angle, allNodes, 55);
 
             rootX = adjusted.x;
@@ -639,8 +641,17 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
               } else {
                 // Create new component node (use normalized ID for deduplication)
                 const compId = `comp-${normalizeLabel(comp.part)}`; // word 제거하여 고유 ID
-                // 방사형: 어근 방향을 유지하면서 확장
-                const compPos = getRadialPosition(rootX, rootY, rootAngle, rootDepth, idx, compCount, false);
+
+                // FORCE RIGHT DIRECTION (0) even if parent is Root (at Top)
+                // This creates a "corner" shape: Word(Center) -> Root(Top) -> Component(Right)
+                // preventing the Component from overlapping with the Root link
+                const compBaseAngle = 0;
+                const compSectorRange = Math.PI / 3; // 60도 범위
+
+                // 방사형: 항상 오른쪽으로 확장
+                // Note: We use isFirstLevel=true logic here to enforce the baseAngle and sectorRange logic
+                // even though it's technically a child of Root.
+                const compPos = getRadialPosition(rootX, rootY, compBaseAngle, rootDepth, idx, compCount, true, compSectorRange);
                 const compAdjusted = adjustForCollision(compPos.x, compPos.y, compPos.angle, [...allNodes, ...newNodes], 50);
                 newNodes.push({
                   id: compId,
@@ -689,10 +700,10 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
               const compId = `comp-${normalizeLabel(comp.part)}`; // word 제거하여 고유 ID
               const wordNodeAngle = wordNode?.angle;
               const isFirstLevel = wordDepth === 0;
-              // 첫 번째 레벨: 오른쪽 위 영역(angle=-PI/4), 이후: 부모 방향 유지
-              const compBaseAngle = isFirstLevel ? -Math.PI / 4 : (wordNodeAngle ?? 0);
-              const compSectorRange = isFirstLevel ? Math.PI / 2 : Math.PI; // 첫 레벨은 90° 범위
-              // 방사형: 단어에서 오른쪽 위 방향으로 확장
+              // 첫 번째 레벨: 오른쪽(0), 이후: 부모 방향 유지
+              const compBaseAngle = isFirstLevel ? 0 : (wordNodeAngle ?? 0);
+              const compSectorRange = isFirstLevel ? Math.PI / 3 : Math.PI / 3; // 첫 레벨은 60° 범위
+              // 방사형: 단어에서 오른쪽 방향으로 확장
               const compPos = getRadialPosition(wordX, wordY, compBaseAngle, wordDepth, idx, compCount, isFirstLevel, compSectorRange);
               const compAdjusted = adjustForCollision(compPos.x, compPos.y, compPos.angle, [...allNodes, ...newNodes], 50);
               newNodes.push({
@@ -740,9 +751,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
           const derivId = `deriv-${word}-${deriv.word}`;
           const isFirstLevel = derivWordDepth === 0;
-          // 첫 번째 레벨: 270° 범위로 넓게 퍼짐 (어근 방향 제외), 이후: 부모 방향 유지
-          const derivBaseAngle = isFirstLevel ? (3 * Math.PI / 4) : (derivWordAngle ?? Math.PI);
-          const derivSectorRange = isFirstLevel ? (3 * Math.PI / 2) : Math.PI; // 첫 레벨은 270°, 이후는 90°
+          // 첫 번째 레벨: 아래쪽(PI/2), 이후: 부모 방향 유지
+          const derivBaseAngle = isFirstLevel ? (Math.PI / 2) : (derivWordAngle ?? Math.PI);
+          const derivSectorRange = isFirstLevel ? (Math.PI / 3) : Math.PI / 3; // 60° 범위
           // 방사형: 넓게 퍼지며 확장 (파생어)
           const derivPos = getRadialPosition(derivWordX, derivWordY, derivBaseAngle, derivWordDepth, idx, derivCount, isFirstLevel, derivSectorRange);
           const derivAdjusted = adjustForCollision(derivPos.x, derivPos.y, derivPos.angle, [...currentNodes, ...newNodes], 55);
@@ -788,9 +799,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
           const synId = `syn-${word}-${syn.word}`;
           const isFirstLevel = synWordDepth === 0;
-          // 동의어: 왼쪽 아래 방향으로 배치 (파생어와 반대)
-          const synBaseAngle = isFirstLevel ? (-3 * Math.PI / 4) : (synWordAngle ?? -Math.PI / 2);
-          const synSectorRange = isFirstLevel ? (Math.PI / 2) : (Math.PI / 3); // 90° 범위
+          // 동의어: 왼쪽(PI), 이후: 부모 방향 유지
+          const synBaseAngle = isFirstLevel ? Math.PI : (synWordAngle ?? -Math.PI / 2);
+          const synSectorRange = isFirstLevel ? (Math.PI / 3) : (Math.PI / 3); // 60° 범위
           const synPos = getRadialPosition(synWordX, synWordY, synBaseAngle, synWordDepth, idx, synCount, isFirstLevel, synSectorRange);
           const synAdjusted = adjustForCollision(synPos.x, synPos.y, synPos.angle, [...currentNodes, ...newNodes], 55);
 
@@ -839,9 +850,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
           const exId = `example-${word}-${ex.word}`;
           const isFirstLevel = exWordDepth === 0;
-          // 첫 번째 레벨: 270° 범위로 넓게 퍼짐, 이후: 부모 방향 유지
-          const exBaseAngle = isFirstLevel ? (3 * Math.PI / 4) : (exWordAngle ?? Math.PI);
-          const exSectorRange = isFirstLevel ? (3 * Math.PI / 2) : Math.PI; // 첫 레벨은 270°
+          // 첫 번째 레벨: 아래쪽(PI/2), 이후: 부모 방향 유지
+          const exBaseAngle = isFirstLevel ? (Math.PI / 2) : (exWordAngle ?? Math.PI);
+          const exSectorRange = isFirstLevel ? (Math.PI / 3) : Math.PI / 3; // 첫 레벨은 60°
           // 방사형: 접사에서 넓게 확장 (예시 단어들)
           const exPos = getRadialPosition(exWordX, exWordY, exBaseAngle, exWordDepth, idx, exampleCount, isFirstLevel, exSectorRange);
           const exAdjusted = adjustForCollision(exPos.x, exPos.y, exPos.angle, [...currentNodes, ...newNodes], 55);
@@ -1292,297 +1303,296 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
       {/* Detail Panel */}
       <div
-        className={`absolute top-0 right-0 ${isComparing ? 'w-[700px]' : 'w-96'} h-full bg-slate-800/95 backdrop-blur-sm border-l border-slate-700 overflow-y-auto z-20 transition-all duration-300 ease-out ${
-          selectedNode?.etymology ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className={`absolute top-0 right-0 ${isComparing ? 'w-[700px]' : 'w-96'} h-full bg-slate-800/95 backdrop-blur-sm border-l border-slate-700 overflow-y-auto z-20 transition-all duration-300 ease-out ${selectedNode?.etymology ? 'translate-x-0' : 'translate-x-full'
+          }`}
       >
         {selectedNode?.etymology && (
           <>
-          <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between z-10">
-            <h2 className="text-xl font-bold text-white capitalize">{selectedNode.label}</h2>
-            <div className="flex items-center gap-2">
-              {selectedNode.type === 'word' && !isComparing && (
-                <button
-                  onClick={handleRefreshEtymology}
-                  disabled={refreshLoading}
-                  className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
-                  title="새 설명 생성"
-                >
-                  <RefreshCw className={`w-5 h-5 text-slate-400 ${refreshLoading ? 'animate-spin' : ''}`} />
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setSelectedNode(null);
-                  setIsComparing(false);
-                  setPrevEtymology(null);
-                }}
-                className="p-1 hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-          </div>
-
-          {/* Comparison Mode */}
-          {isComparing && prevEtymology ? (
-            <div className="p-4">
-              <div className="grid grid-cols-2 gap-4">
-                {/* Previous Etymology */}
-                <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-600">
-                  <h3 className="text-sm font-semibold text-amber-400 mb-3">이전 설명</h3>
-                  {prevEtymology.definition && (
-                    <div className="mb-4">
-                      <p className="text-base font-medium text-white mb-1">
-                        {prevEtymology.definition.brief}
-                      </p>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        {prevEtymology.definition.detailed}
-                      </p>
-                    </div>
-                  )}
-                  {prevEtymology.origin && (
-                    <div className="text-xs text-slate-400">
-                      <span className="text-amber-400">{prevEtymology.origin.language}</span>
-                      {' '}→ {prevEtymology.origin.root}
-                    </div>
-                  )}
-                </div>
-
-                {/* New Etymology */}
-                <div className="bg-slate-900/50 rounded-lg p-4 border border-indigo-500">
-                  <h3 className="text-sm font-semibold text-indigo-400 mb-3">새 설명</h3>
-                  {selectedNode.etymology.definition && (
-                    <div className="mb-4">
-                      <p className="text-base font-medium text-white mb-1">
-                        {selectedNode.etymology.definition.brief}
-                      </p>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        {selectedNode.etymology.definition.detailed}
-                      </p>
-                    </div>
-                  )}
-                  {selectedNode.etymology.origin && (
-                    <div className="text-xs text-slate-400">
-                      <span className="text-amber-400">{selectedNode.etymology.origin.language}</span>
-                      {' '}→ {selectedNode.etymology.origin.root}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex justify-center gap-3 mt-6">
-                <button
-                  onClick={handleApplyEtymology}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors text-sm font-medium"
-                >
-                  새 설명 적용
-                </button>
-                <button
-                  onClick={handleRevertEtymology}
-                  className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors text-sm font-medium"
-                >
-                  취소
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Normal Detail View */
-            <div className="p-4 space-y-6">
-              {/* Definition */}
-              {selectedNode.etymology.definition && (
-                <section>
-                  <h3 className="text-sm font-semibold text-indigo-400 mb-2">의미</h3>
-                  <p className="text-lg font-medium text-white mb-2">
-                    {selectedNode.etymology.definition.brief}
-                  </p>
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    {selectedNode.etymology.definition.detailed}
-                  </p>
-                  {selectedNode.etymology.definition.nuance && (
-                    <p className="text-sm text-slate-400 mt-2 italic">
-                      💡 {selectedNode.etymology.definition.nuance}
-                    </p>
-                  )}
-                </section>
-              )}
-
-              {/* Examples - 일반 단어 또는 접미사/접두사 */}
-              {selectedNode.etymology.examples && selectedNode.etymology.examples.length > 0 && (
-                <section>
-                  <h3 className="text-sm font-semibold text-indigo-400 mb-2">
-                    {(selectedNode.etymology as any).type ? '예시 단어' : '예문'}
-                  </h3>
-                  <div className="space-y-3">
-                    {selectedNode.etymology.examples.map((example: any, i: number) => (
-                      <div key={i} className="bg-slate-900/50 rounded-lg p-3">
-                        {/* 접미사/접두사: word, base, meaning, explanation */}
-                        {example.word ? (
-                          <>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-white font-medium">{example.word}</span>
-                              <span className="text-slate-500 text-sm">← {example.base}</span>
-                            </div>
-                            <p className="text-emerald-400 text-sm">{example.meaning}</p>
-                            <p className="text-slate-400 text-xs mt-1">{example.explanation}</p>
-                          </>
-                        ) : (
-                          /* 일반 단어: english, translation */
-                          <>
-                            <p className="text-slate-200 text-sm">{example.english}</p>
-                            <p className="text-slate-400 text-sm mt-1">{example.translation}</p>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Etymology */}
-              <section>
-                <h3 className="text-sm font-semibold text-indigo-400 mb-2">어원</h3>
-                {selectedNode.etymology.origin && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded">
-                        {selectedNode.etymology.origin.language}
-                      </span>
-                      {/* 접미사/접두사: originalForm, 일반 단어: root */}
-                      <span className="text-white font-medium">
-                        {(selectedNode.etymology.origin as any).originalForm || selectedNode.etymology.origin.root}
-                      </span>
-                    </div>
-                    {/* 접미사/접두사: origin.originalMeaning */}
-                    {(selectedNode.etymology.origin as any).originalMeaning && (
-                      <p className="text-sm text-slate-400">{(selectedNode.etymology.origin as any).originalMeaning}</p>
-                    )}
-                    {selectedNode.etymology.origin.rootMeaning && (
-                      <p className="text-sm text-slate-400">{selectedNode.etymology.origin.rootMeaning}</p>
-                    )}
-                    {selectedNode.etymology.origin.components?.filter(c => c.part !== '-').length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {selectedNode.etymology.origin.components.filter(c => c.part !== '-').map((comp, i) => (
-                          <div key={i} className="bg-purple-500/20 px-2 py-1 rounded text-sm">
-                            <span className="text-purple-300 font-medium">{comp.part}</span>
-                            <span className="text-slate-400 ml-1">
-                              ({comp.meaningLocalized || comp.meaning})
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+            <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between z-10">
+              <h2 className="text-xl font-bold text-white capitalize">{selectedNode.label}</h2>
+              <div className="flex items-center gap-2">
+                {selectedNode.type === 'word' && !isComparing && (
+                  <button
+                    onClick={handleRefreshEtymology}
+                    disabled={refreshLoading}
+                    className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                    title="새 설명 생성"
+                  >
+                    <RefreshCw className={`w-5 h-5 text-slate-400 ${refreshLoading ? 'animate-spin' : ''}`} />
+                  </button>
                 )}
-              </section>
+                <button
+                  onClick={() => {
+                    setSelectedNode(null);
+                    setIsComparing(false);
+                    setPrevEtymology(null);
+                  }}
+                  className="p-1 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+            </div>
 
-              {/* Related Suffixes/Prefixes - 접미사/접두사 전용 */}
-              {((selectedNode.etymology as any).relatedSuffixes || (selectedNode.etymology as any).relatedPrefixes) && (
-                <section>
-                  <h3 className="text-sm font-semibold text-indigo-400 mb-2">관련 접사</h3>
-                  <div className="space-y-2">
-                    {((selectedNode.etymology as any).relatedSuffixes || (selectedNode.etymology as any).relatedPrefixes || []).map((related: any, i: number) => (
-                      <div key={i} className="bg-slate-900/50 rounded-lg p-3">
-                        <span className="text-cyan-400 font-medium">{related.suffix || related.prefix}</span>
-                        <p className="text-slate-400 text-sm mt-1">{related.difference}</p>
+            {/* Comparison Mode */}
+            {isComparing && prevEtymology ? (
+              <div className="p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Previous Etymology */}
+                  <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-600">
+                    <h3 className="text-sm font-semibold text-amber-400 mb-3">이전 설명</h3>
+                    {prevEtymology.definition && (
+                      <div className="mb-4">
+                        <p className="text-base font-medium text-white mb-1">
+                          {prevEtymology.definition.brief}
+                        </p>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          {prevEtymology.definition.detailed}
+                        </p>
                       </div>
-                    ))}
+                    )}
+                    {prevEtymology.origin && (
+                      <div className="text-xs text-slate-400">
+                        <span className="text-amber-400">{prevEtymology.origin.language}</span>
+                        {' '}→ {prevEtymology.origin.root}
+                      </div>
+                    )}
                   </div>
-                </section>
-              )}
 
-              {/* Evolution */}
-              {selectedNode.etymology.evolution && (
-                <section>
-                  <h3 className="text-sm font-semibold text-indigo-400 mb-2">의미 변화</h3>
-                  <p className="text-sm text-cyan-400 mb-2">
-                    {typeof selectedNode.etymology.evolution === 'string'
-                      ? selectedNode.etymology.evolution
-                      : selectedNode.etymology.evolution.path}
-                  </p>
-                  {typeof selectedNode.etymology.evolution === 'object' && selectedNode.etymology.evolution.explanation && (
-                    <p className="text-sm text-slate-300 leading-relaxed">
-                      {selectedNode.etymology.evolution.explanation}
+                  {/* New Etymology */}
+                  <div className="bg-slate-900/50 rounded-lg p-4 border border-indigo-500">
+                    <h3 className="text-sm font-semibold text-indigo-400 mb-3">새 설명</h3>
+                    {selectedNode.etymology.definition && (
+                      <div className="mb-4">
+                        <p className="text-base font-medium text-white mb-1">
+                          {selectedNode.etymology.definition.brief}
+                        </p>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          {selectedNode.etymology.definition.detailed}
+                        </p>
+                      </div>
+                    )}
+                    {selectedNode.etymology.origin && (
+                      <div className="text-xs text-slate-400">
+                        <span className="text-amber-400">{selectedNode.etymology.origin.language}</span>
+                        {' '}→ {selectedNode.etymology.origin.root}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-center gap-3 mt-6">
+                  <button
+                    onClick={handleApplyEtymology}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors text-sm font-medium"
+                  >
+                    새 설명 적용
+                  </button>
+                  <button
+                    onClick={handleRevertEtymology}
+                    className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors text-sm font-medium"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Normal Detail View */
+              <div className="p-4 space-y-6">
+                {/* Definition */}
+                {selectedNode.etymology.definition && (
+                  <section>
+                    <h3 className="text-sm font-semibold text-indigo-400 mb-2">의미</h3>
+                    <p className="text-lg font-medium text-white mb-2">
+                      {selectedNode.etymology.definition.brief}
                     </p>
+                    <p className="text-sm text-slate-300 leading-relaxed">
+                      {selectedNode.etymology.definition.detailed}
+                    </p>
+                    {selectedNode.etymology.definition.nuance && (
+                      <p className="text-sm text-slate-400 mt-2 italic">
+                        💡 {selectedNode.etymology.definition.nuance}
+                      </p>
+                    )}
+                  </section>
+                )}
+
+                {/* Examples - 일반 단어 또는 접미사/접두사 */}
+                {selectedNode.etymology.examples && selectedNode.etymology.examples.length > 0 && (
+                  <section>
+                    <h3 className="text-sm font-semibold text-indigo-400 mb-2">
+                      {(selectedNode.etymology as any).type ? '예시 단어' : '예문'}
+                    </h3>
+                    <div className="space-y-3">
+                      {selectedNode.etymology.examples.map((example: any, i: number) => (
+                        <div key={i} className="bg-slate-900/50 rounded-lg p-3">
+                          {/* 접미사/접두사: word, base, meaning, explanation */}
+                          {example.word ? (
+                            <>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-white font-medium">{example.word}</span>
+                                <span className="text-slate-500 text-sm">← {example.base}</span>
+                              </div>
+                              <p className="text-emerald-400 text-sm">{example.meaning}</p>
+                              <p className="text-slate-400 text-xs mt-1">{example.explanation}</p>
+                            </>
+                          ) : (
+                            /* 일반 단어: english, translation */
+                            <>
+                              <p className="text-slate-200 text-sm">{example.english}</p>
+                              <p className="text-slate-400 text-sm mt-1">{example.translation}</p>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Etymology */}
+                <section>
+                  <h3 className="text-sm font-semibold text-indigo-400 mb-2">어원</h3>
+                  {selectedNode.etymology.origin && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded">
+                          {selectedNode.etymology.origin.language}
+                        </span>
+                        {/* 접미사/접두사: originalForm, 일반 단어: root */}
+                        <span className="text-white font-medium">
+                          {(selectedNode.etymology.origin as any).originalForm || selectedNode.etymology.origin.root}
+                        </span>
+                      </div>
+                      {/* 접미사/접두사: origin.originalMeaning */}
+                      {(selectedNode.etymology.origin as any).originalMeaning && (
+                        <p className="text-sm text-slate-400">{(selectedNode.etymology.origin as any).originalMeaning}</p>
+                      )}
+                      {selectedNode.etymology.origin.rootMeaning && (
+                        <p className="text-sm text-slate-400">{selectedNode.etymology.origin.rootMeaning}</p>
+                      )}
+                      {selectedNode.etymology.origin.components?.filter(c => c.part !== '-').length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {selectedNode.etymology.origin.components.filter(c => c.part !== '-').map((comp, i) => (
+                            <div key={i} className="bg-purple-500/20 px-2 py-1 rounded text-sm">
+                              <span className="text-purple-300 font-medium">{comp.part}</span>
+                              <span className="text-slate-400 ml-1">
+                                ({comp.meaningLocalized || comp.meaning})
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </section>
-              )}
 
-              {/* Polysemy - Semantic Evolution */}
-              {selectedNode.etymology.senses && selectedNode.etymology.senses.length >= 2 && (
-                <section>
-                  <h3 className="text-sm font-semibold text-indigo-400 mb-3">의미 분화</h3>
-                  {/* Root indicator */}
-                  <div className="flex items-center gap-2 mb-3 p-2 bg-amber-500/10 rounded-lg border border-amber-500/30">
-                    <span className="font-mono text-amber-400 font-medium">
-                      {selectedNode.etymology.origin?.root}
-                    </span>
-                    <span className="text-slate-400 text-xs">
-                      ({selectedNode.etymology.origin?.rootMeaning || selectedNode.etymology.originalMeaning})
-                    </span>
-                  </div>
-                  {/* Senses list */}
-                  <div className="space-y-2 ml-2 border-l-2 border-slate-600 pl-3">
-                    {selectedNode.etymology.senses.map((sense, idx) => (
-                      <div key={idx} className="bg-slate-900/50 rounded-lg p-3 relative">
-                        {/* Branch connector */}
-                        <div className="absolute -left-[14px] top-1/2 w-3 h-0.5 bg-slate-600" />
-                        {/* Domain badge */}
-                        <span className="inline-block px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-xs rounded mb-2">
-                          {sense.domain}
-                        </span>
-                        {/* Meaning */}
-                        <div className="flex items-baseline gap-2 mb-1">
-                          <span className="text-white font-medium">{sense.meaning}</span>
-                          <span className="text-slate-400 text-xs">({sense.english})</span>
+                {/* Related Suffixes/Prefixes - 접미사/접두사 전용 */}
+                {((selectedNode.etymology as any).relatedSuffixes || (selectedNode.etymology as any).relatedPrefixes) && (
+                  <section>
+                    <h3 className="text-sm font-semibold text-indigo-400 mb-2">관련 접사</h3>
+                    <div className="space-y-2">
+                      {((selectedNode.etymology as any).relatedSuffixes || (selectedNode.etymology as any).relatedPrefixes || []).map((related: any, i: number) => (
+                        <div key={i} className="bg-slate-900/50 rounded-lg p-3">
+                          <span className="text-cyan-400 font-medium">{related.suffix || related.prefix}</span>
+                          <p className="text-slate-400 text-sm mt-1">{related.difference}</p>
                         </div>
-                        {/* Metaphorical extension */}
-                        <p className="text-xs text-amber-300/80 italic">
-                          ↳ {sense.metaphoricalExtension}
-                        </p>
-                        {/* Example */}
-                        {sense.example && (
-                          <div className="mt-2 pt-2 border-t border-slate-700 text-xs">
-                            <p className="text-slate-300">&quot;{sense.example.english}&quot;</p>
-                            <p className="text-slate-500">{sense.example.translation}</p>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Evolution */}
+                {selectedNode.etymology.evolution && (
+                  <section>
+                    <h3 className="text-sm font-semibold text-indigo-400 mb-2">의미 변화</h3>
+                    <p className="text-sm text-cyan-400 mb-2">
+                      {typeof selectedNode.etymology.evolution === 'string'
+                        ? selectedNode.etymology.evolution
+                        : selectedNode.etymology.evolution.path}
+                    </p>
+                    {typeof selectedNode.etymology.evolution === 'object' && selectedNode.etymology.evolution.explanation && (
+                      <p className="text-sm text-slate-300 leading-relaxed">
+                        {selectedNode.etymology.evolution.explanation}
+                      </p>
+                    )}
+                  </section>
+                )}
+
+                {/* Polysemy - Semantic Evolution */}
+                {selectedNode.etymology.senses && selectedNode.etymology.senses.length >= 2 && (
+                  <section>
+                    <h3 className="text-sm font-semibold text-indigo-400 mb-3">의미 분화</h3>
+                    {/* Root indicator */}
+                    <div className="flex items-center gap-2 mb-3 p-2 bg-amber-500/10 rounded-lg border border-amber-500/30">
+                      <span className="font-mono text-amber-400 font-medium">
+                        {selectedNode.etymology.origin?.root}
+                      </span>
+                      <span className="text-slate-400 text-xs">
+                        ({selectedNode.etymology.origin?.rootMeaning || selectedNode.etymology.originalMeaning})
+                      </span>
+                    </div>
+                    {/* Senses list */}
+                    <div className="space-y-2 ml-2 border-l-2 border-slate-600 pl-3">
+                      {selectedNode.etymology.senses.map((sense, idx) => (
+                        <div key={idx} className="bg-slate-900/50 rounded-lg p-3 relative">
+                          {/* Branch connector */}
+                          <div className="absolute -left-[14px] top-1/2 w-3 h-0.5 bg-slate-600" />
+                          {/* Domain badge */}
+                          <span className="inline-block px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-xs rounded mb-2">
+                            {sense.domain}
+                          </span>
+                          {/* Meaning */}
+                          <div className="flex items-baseline gap-2 mb-1">
+                            <span className="text-white font-medium">{sense.meaning}</span>
+                            <span className="text-slate-400 text-xs">({sense.english})</span>
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Synonyms */}
-              {selectedNode.etymology.synonyms && selectedNode.etymology.synonyms.length > 0 && (
-                <section>
-                  <h3 className="text-sm font-semibold text-indigo-400 mb-2">동의어</h3>
-                  <div className="space-y-2">
-                    {selectedNode.etymology.synonyms.map((synonym, i) => (
-                      <div key={i} className="bg-purple-500/10 rounded-lg p-3 border border-purple-500/30">
-                        <div className="flex items-baseline gap-2 mb-1">
-                          <span className="text-purple-300 font-medium">{synonym.word}</span>
-                          <span className="text-slate-400 text-sm">{synonym.meaning}</span>
+                          {/* Metaphorical extension */}
+                          <p className="text-xs text-amber-300/80 italic">
+                            ↳ {sense.metaphoricalExtension}
+                          </p>
+                          {/* Example */}
+                          {sense.example && (
+                            <div className="mt-2 pt-2 border-t border-slate-700 text-xs">
+                              <p className="text-slate-300">&quot;{sense.example.english}&quot;</p>
+                              <p className="text-slate-500">{sense.example.translation}</p>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-400">{synonym.nuance}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
+                      ))}
+                    </div>
+                  </section>
+                )}
 
-              {/* Historical Context */}
-              {selectedNode.etymology.historicalContext && (
-                <section>
-                  <h3 className="text-sm font-semibold text-indigo-400 mb-2">역사적 배경</h3>
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    {selectedNode.etymology.historicalContext}
-                  </p>
-                </section>
-              )}
-            </div>
-          )}
+                {/* Synonyms */}
+                {selectedNode.etymology.synonyms && selectedNode.etymology.synonyms.length > 0 && (
+                  <section>
+                    <h3 className="text-sm font-semibold text-indigo-400 mb-2">동의어</h3>
+                    <div className="space-y-2">
+                      {selectedNode.etymology.synonyms.map((synonym, i) => (
+                        <div key={i} className="bg-purple-500/10 rounded-lg p-3 border border-purple-500/30">
+                          <div className="flex items-baseline gap-2 mb-1">
+                            <span className="text-purple-300 font-medium">{synonym.word}</span>
+                            <span className="text-slate-400 text-sm">{synonym.meaning}</span>
+                          </div>
+                          <p className="text-xs text-slate-400">{synonym.nuance}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Historical Context */}
+                {selectedNode.etymology.historicalContext && (
+                  <section>
+                    <h3 className="text-sm font-semibold text-indigo-400 mb-2">역사적 배경</h3>
+                    <p className="text-sm text-slate-300 leading-relaxed">
+                      {selectedNode.etymology.historicalContext}
+                    </p>
+                  </section>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
