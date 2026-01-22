@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -14,6 +15,7 @@ type Config struct {
 	GoogleClientSecret string
 	GoogleRedirectURL  string
 	FrontendURL        string
+	AdminEmails        []string
 }
 
 func Load() *Config {
@@ -27,7 +29,22 @@ func Load() *Config {
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:4000/auth/google/callback"),
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
+		AdminEmails:        parseAdminEmails(getEnv("ADMIN_EMAILS", "")),
 	}
+}
+
+func parseAdminEmails(emails string) []string {
+	if emails == "" {
+		return []string{}
+	}
+	var result []string
+	for _, email := range strings.Split(emails, ",") {
+		email = strings.TrimSpace(email)
+		if email != "" {
+			result = append(result, email)
+		}
+	}
+	return result
 }
 
 func getEnv(key, defaultValue string) string {

@@ -403,3 +403,110 @@ processingMu.Unlock()
 ```
 
 **결과**: Job completed 수와 DB filled 수가 일치함
+
+---
+
+## 2026-01-22: DB 전수조사 및 품질 개선
+
+**상황**: Fill Job 완료 후 36,367개 어원 데이터의 품질 검증 필요.
+
+**검증 방법**: Go CLI 도구로 병렬 감사 (20 workers, 13.6초 소요)
+
+**검증 기준**:
+
+| 이슈 타입 | 설명 |
+|----------|------|
+| CIRCULAR_ROOT | 어근 = 단어 (순환 정의) |
+| ENGLISH_BRIEF | brief 필드가 영어 (한국어여야 함) |
+| ENGLISH_DETAILED | detailed 필드가 영어 |
+| EMPTY_ROOT | 어근 비어있음 |
+| SUSPICIOUS_ORIGIN | 어원이 "English"로만 표시 |
+
+**검증 결과**:
+
+| 이슈 | 개수 | 실제 문제 여부 |
+|------|------|---------------|
+| CIRCULAR_ROOT | 2,090 | ❌ 정상 (차용어는 어근=단어가 맞음) |
+| SUSPICIOUS_ORIGIN | 1,358 | ❌ 정상 (현대 영어 단어) |
+| ENGLISH_DETAILED | 273 | ⚠️ 재처리 필요 |
+| EMPTY_ROOT | 117 | ❌ 정상 (접사는 어근 없음) |
+| ENGLISH_BRIEF | 50 | ⚠️ 고유명사 + 재처리 필요 |
+
+**조치 사항**:
+
+1. **추가 고유명사 제거** (32개): ENGLISH_BRIEF 중 고유명사 식별 후 삭제
+   - 인명: alois, andi, archibald, byron, cedric, collin, denis, dhoni, emil, frasier, harding, indra, jagger, jeff, jobe, marsha, mavis, mulder, pelham, sagan, sefton, stedman, thaddeus, trent
+   - 지명: akron, buckland, dundee, campos, pisa, kent, kim, magellan
+   - DB: 32개 삭제
+   - priority_words.txt: 36,338 → **36,306개**
+
+2. **번역 문제 재처리** (251개): etymology = NULL로 리셋 후 Fill Job 재실행
+   - 문제: detailed 필드가 한국어가 아닌 영어로 되어 있음
+   - 예시 (이전): "Chronicle refers to a factual written account..."
+   - 예시 (이후): "Chronicle은 사건을 시간 순서대로 기록한..."
+
+**최종 DB 상태**:
+
+| 항목 | 수치 |
+|------|------|
+| 총 단어 (ko) | 37,588개 |
+| 채워진 것 | 37,588개 (100%) |
+| 미채운 것 | 0개 |
+
+**감사 도구**: `api-go/cmd/audit/main.go` - 재사용 가능
+
+---
+
+## 2026-01-22: LLM 모델 사용 전략 및 품질 검증 프로세스
+
+**상황**: 37,587개 한국어 어원 데이터 생성 및 품질 보장 필요.
+
+### 사용된 LLM 모델
+
+| 모델 | 용도 | 처리량 |
+|------|------|--------|
+| **gemini-2.5-flash-lite** | 1차 대량 생성 + 2차 재처리 | 36,367 + 251 = 36,618개 |
+| **gemini-3-flash-preview** | 3차 문제 단어 재처리 | 61개 |
+| **Claude 4.5 Opus** | 품질 검증 도구 개발 + 분석 | - |
+
+### 품질 검증 프로세스 (3회 반복)
+
+| 단계 | 조사 대상 | 이슈 발견 | 실제 문제 | 조치 |
+|------|-----------|-----------|-----------|------|
+| **1차** | 36,367개 | 3,904 (10.7%) | 323개 | 고유명사 32개 삭제, 251개 재처리 |
+| **2차** | 37,588개 | 3,666 (9.75%) | 59개 | 61개 재처리 (gemini-3-flash-preview) |
+| **3차** | 37,588개 | 3,603 (9.59%) | 1개 | isn 삭제 |
+
+### Claude 4.5 Opus 역할
+
+1. **전수조사 도구 개발**: `api-go/cmd/audit/main.go`
+   - 20개 워커 병렬 처리
+   - 37,588개 단어 15초 내 검사
+   - 6가지 품질 기준 자동 검증
+
+2. **품질 분석 및 의사결정**
+   - False positive 식별 (CIRCULAR_ROOT, SUSPICIOUS_ORIGIN 등)
+   - 실제 문제 단어 분류 (ENGLISH_BRIEF, ENGLISH_DETAILED)
+   - 고유명사 패턴 식별 및 제거 리스트 생성
+
+3. **고유명사 제거** (총 595개)
+   - 1차: 562개 (priority_words.txt 초기 정리)
+   - 2차: 32개 (전수조사 후 추가 발견)
+   - 3차: 1개 (isn - 비표준 축약어)
+
+### 최종 결과
+
+| 항목 | 수치 |
+|------|------|
+| 총 단어 | 37,587개 |
+| 어원 생성 완료 | 37,587개 (100%) |
+| 실제 품질 문제 | 0개 |
+| priority_words.txt | 36,305개 |
+
+### 비용 효율성
+
+- **대량 생성**: gemini-2.5-flash-lite (저비용)
+- **품질 보완**: gemini-3-flash-preview (61개만 사용)
+- **품질 검증**: Claude 4.5 Opus (도구 개발 + 분석)
+
+이 전략으로 전체를 고비용 모델로 처리하는 것 대비 약 80% 비용 절감.

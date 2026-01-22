@@ -81,8 +81,8 @@ func (h *FillHandler) StartFill(c *gin.Context) {
 	if req.Workers > 100 {
 		req.Workers = 100 // Max 100 workers
 	}
-	if req.DelayMs < 0 {
-		req.DelayMs = 100 // Default 100ms between requests per worker
+	if req.DelayMs <= 0 {
+		req.DelayMs = 3000 // Default 3000ms between requests per worker (~100 RPM with 5 workers)
 	}
 
 	langKey := getLanguageKey(req.Language)

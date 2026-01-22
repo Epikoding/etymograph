@@ -113,11 +113,14 @@ func main() {
 		api.POST("/words/:word/apply", wordHandler.ApplyEtymology)
 		api.POST("/words/:word/revert", wordHandler.RevertEtymology)
 
-		// Etymology fill job management
-		api.POST("/words/fill-etymology", fillHandler.StartFill)
-		api.GET("/words/fill-status/:jobId", fillHandler.GetFillStatus)
-		api.POST("/words/fill-etymology/stop", fillHandler.StopFill)
-		api.GET("/words/fill-jobs", fillHandler.ListJobs)
+		// Etymology fill job management (admin only)
+		adminGroup := api.Group("", middleware.AdminMiddleware(cfg.JWTSecret, cfg.AdminEmails))
+		{
+			adminGroup.POST("/words/fill-etymology", fillHandler.StartFill)
+			adminGroup.GET("/words/fill-status/:jobId", fillHandler.GetFillStatus)
+			adminGroup.POST("/words/fill-etymology/stop", fillHandler.StopFill)
+			adminGroup.GET("/words/fill-jobs", fillHandler.ListJobs)
+		}
 
 		// Sessions
 		api.POST("/sessions", sessionHandler.Create)

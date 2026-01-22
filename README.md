@@ -14,24 +14,24 @@
 
 ### 그래프 노드 타입
 
-| 타입 | 영어 | 색상 | 설명 | 예시 |
-|------|------|------|------|------|
-| **단어** | word | 파란색 | 검색한 영어 단어 | pretext |
-| **어근** | root | 주황색 | 단어의 원형 (라틴어, 그리스어 등) | praetextum (라틴어) |
-| **구성요소** | component | 빨간색/보라색 | 어근을 구성하는 접두사, 접미사, 어간 | prae- (앞에), textum (짜다) |
-| **파생어** | derivative | 청록색 | 같은 어원에서 파생된 다른 단어들 | context, texture, textile |
+| 타입         | 영어       | 색상          | 설명                                 | 예시                        |
+| ------------ | ---------- | ------------- | ------------------------------------ | --------------------------- |
+| **단어**     | word       | 파란색        | 검색한 영어 단어                     | pretext                     |
+| **어근**     | root       | 주황색        | 단어의 원형 (라틴어, 그리스어 등)    | praetextum (라틴어)         |
+| **구성요소** | component  | 빨간색/보라색 | 어근을 구성하는 접두사, 접미사, 어간 | prae- (앞에), textum (짜다) |
+| **파생어**   | derivative | 청록색        | 같은 어원에서 파생된 다른 단어들     | context, texture, textile   |
 
 ### 그래프 엣지 (연결선)
 
 노드와 노드 사이를 연결하는 선을 **엣지(Edge)** 또는 **링크(Link)**라고 합니다.
 
-| 연결 | 의미 | 방향 |
-|------|------|------|
-| 단어 → 어근 | 단어가 이 어근에서 유래함 | 어원 방향 |
-| 어근 → 구성요소 | 어근이 이 구성요소들로 이루어짐 | 분해 방향 |
-| 단어 → 구성요소 | 단어가 이 구성요소들로 이루어짐 (어근 없을 때) | 분해 방향 |
-| 구성요소 → 파생어 | 이 구성요소를 공유하는 파생어 | 파생 방향 |
-| 파생어 → 단어 | 파생어 클릭 시 새 단어로 확장 | 탐색 방향 |
+| 연결              | 의미                                           | 방향      |
+| ----------------- | ---------------------------------------------- | --------- |
+| 단어 → 어근       | 단어가 이 어근에서 유래함                      | 어원 방향 |
+| 어근 → 구성요소   | 어근이 이 구성요소들로 이루어짐                | 분해 방향 |
+| 단어 → 구성요소   | 단어가 이 구성요소들로 이루어짐 (어근 없을 때) | 분해 방향 |
+| 구성요소 → 파생어 | 이 구성요소를 공유하는 파생어                  | 파생 방향 |
+| 파생어 → 단어     | 파생어 클릭 시 새 단어로 확장                  | 탐색 방향 |
 
 ### 그래프 레이아웃
 
@@ -49,12 +49,12 @@
 
 ### 어원 관련 용어
 
-| 용어 | 설명 |
-|------|------|
-| **어원 (Etymology)** | 단어의 기원과 역사적 발전 과정 |
-| **접두사 (Prefix)** | 단어 앞에 붙어 의미를 변화시키는 요소 (pre-, con-, sub-) |
-| **접미사 (Suffix)** | 단어 뒤에 붙어 품사나 의미를 변화시키는 요소 (-tion, -ly, -ment) |
-| **어간 (Stem)** | 접사를 제외한 단어의 핵심 부분 (text, scrib, port) |
+| 용어                 | 설명                                                             |
+| -------------------- | ---------------------------------------------------------------- |
+| **어원 (Etymology)** | 단어의 기원과 역사적 발전 과정                                   |
+| **접두사 (Prefix)**  | 단어 앞에 붙어 의미를 변화시키는 요소 (pre-, con-, sub-)         |
+| **접미사 (Suffix)**  | 단어 뒤에 붙어 품사나 의미를 변화시키는 요소 (-tion, -ly, -ment) |
+| **어간 (Stem)**      | 접사를 제외한 단어의 핵심 부분 (text, scrib, port)               |
 
 ## 아키텍처
 
@@ -138,45 +138,45 @@ etymograph/
 
 ### 단어 API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/words/search | 단어 검색 + 어원 분석 |
-| GET | /api/words/:word/etymology | 어원 상세 |
-| GET | /api/words/:word/derivatives | 파생어 목록 |
-| GET | /api/words/:word/synonyms | 유사어 + 차이점 |
-| POST | /api/sessions | 세션 생성 |
-| GET | /api/sessions/:id | 세션 조회 |
-| POST | /api/sessions/:id/words | 세션에 단어 추가 |
-| GET | /api/export/:sessionId | Export (format=json\|csv\|md) |
+| Method | Endpoint                     | Description                   |
+| ------ | ---------------------------- | ----------------------------- |
+| POST   | /api/words/search            | 단어 검색 + 어원 분석         |
+| GET    | /api/words/:word/etymology   | 어원 상세                     |
+| GET    | /api/words/:word/derivatives | 파생어 목록                   |
+| GET    | /api/words/:word/synonyms    | 유사어 + 차이점               |
+| POST   | /api/sessions                | 세션 생성                     |
+| GET    | /api/sessions/:id            | 세션 조회                     |
+| POST   | /api/sessions/:id/words      | 세션에 단어 추가              |
+| GET    | /api/export/:sessionId       | Export (format=json\|csv\|md) |
 
 ### 어원 일괄 생성 API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/words/unfilled | etymology가 null인 단어 목록 |
-| POST | /api/words/fill-etymology | 어원 일괄 생성 Job 시작 |
-| GET | /api/words/fill-status/:jobId | Job 진행 상황 조회 |
-| POST | /api/words/fill-etymology/stop | 진행 중인 Job 중단 |
+| Method | Endpoint                       | Description                  |
+| ------ | ------------------------------ | ---------------------------- |
+| GET    | /api/words/unfilled            | etymology가 null인 단어 목록 |
+| POST   | /api/words/fill-etymology      | 어원 일괄 생성 Job 시작      |
+| GET    | /api/words/fill-status/:jobId  | Job 진행 상황 조회           |
+| POST   | /api/words/fill-etymology/stop | 진행 중인 Job 중단           |
 
 ### 인증 API (OAuth 2.0 + JWT)
 
-| Method | Endpoint | Description | 인증 |
-|--------|----------|-------------|------|
-| GET | /auth/google | Google OAuth URL 반환 | X |
-| GET | /auth/google/callback | OAuth 콜백 처리 | X |
-| POST | /auth/refresh | Access Token 갱신 | X |
-| POST | /auth/logout | 로그아웃 (Refresh Token 무효화) | O |
-| GET | /auth/me | 현재 사용자 정보 | O |
+| Method | Endpoint              | Description                     | 인증 |
+| ------ | --------------------- | ------------------------------- | ---- |
+| GET    | /auth/google          | Google OAuth URL 반환           | X    |
+| GET    | /auth/google/callback | OAuth 콜백 처리                 | X    |
+| POST   | /auth/refresh         | Access Token 갱신               | X    |
+| POST   | /auth/logout          | 로그아웃 (Refresh Token 무효화) | O    |
+| GET    | /auth/me              | 현재 사용자 정보                | O    |
 
 ### 검색 히스토리 API
 
-| Method | Endpoint | Description | 인증 |
-|--------|----------|-------------|------|
-| GET | /api/history?page=1&limit=20 | 검색 히스토리 조회 (페이지네이션) | O |
-| GET | /api/history/dates | 날짜별 히스토리 요약 목록 | O |
-| GET | /api/history/dates/:date | 특정 날짜 검색어 목록 (YYYY-MM-DD) | O |
-| DELETE | /api/history/:id | 특정 히스토리 삭제 | O |
-| DELETE | /api/history | 전체 히스토리 삭제 | O |
+| Method | Endpoint                     | Description                        | 인증 |
+| ------ | ---------------------------- | ---------------------------------- | ---- |
+| GET    | /api/history?page=1&limit=20 | 검색 히스토리 조회 (페이지네이션)  | O    |
+| GET    | /api/history/dates           | 날짜별 히스토리 요약 목록          | O    |
+| GET    | /api/history/dates/:date     | 특정 날짜 검색어 목록 (YYYY-MM-DD) | O    |
+| DELETE | /api/history/:id             | 특정 히스토리 삭제                 | O    |
+| DELETE | /api/history                 | 전체 히스토리 삭제                 | O    |
 
 ## 환경 변수
 
@@ -217,16 +217,54 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 
 ## 기술 스택
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | Next.js 15, React 19, TailwindCSS, react-force-graph-2d |
-| API | Go 1.23, Gin, GORM |
-| LLM Proxy | Go 1.22, Gin |
-| Rate Limiter | Go 1.22, Token Bucket |
-| Database | PostgreSQL 16, Redis 7 |
-| LLM | Gemini API / Ollama (Qwen3:8b) |
-| Auth | Google OAuth 2.0, JWT |
-| Infra | Docker Compose, k3s (optional) |
+| Layer        | Technology                                                       |
+| ------------ | ---------------------------------------------------------------- |
+| Frontend     | Next.js 15, React 19, TailwindCSS, react-force-graph-2d          |
+| API          | Go 1.23, Gin, GORM                                               |
+| LLM Proxy    | Go 1.22, Gin                                                     |
+| Rate Limiter | Go 1.22, Token Bucket                                            |
+| Database     | PostgreSQL 16, Redis 7                                           |
+| LLM          | Gemini API (2.5 Flash-Lite, 3 Flash Preview) / Ollama (Qwen3:8b) |
+| Auth         | Google OAuth 2.0, JWT                                            |
+| Infra        | Docker Compose, k3s (optional)                                   |
+
+## 단어 데이터
+
+### 수록 단어 (37,587개)
+
+| 소스               | 단어 수   | 설명                            |
+| ------------------ | --------- | ------------------------------- |
+| **FrequencyWords** | ~36,300개 | 영화/TV 자막 기반 빈도순 영단어 |
+| **TOEIC**          | ~1,200개  | 토익 필수 어휘                  |
+| **TOEFL**          | 5,033개   | 토플 필수 어휘                  |
+| **IELTS**          | 3,564개   | 아이엘츠 필수 어휘              |
+| **GRE**            | 674개     | GRE 필수 어휘                   |
+
+### 한국인 대상 영어 시험 단어
+
+한국인이 많이 응시하는 영어 시험의 필수 어휘를 포함:
+
+- **TOEIC**: 비즈니스 영어 능력 평가
+- **TOEFL**: 북미 대학/대학원 입학용
+- **IELTS**: 영국/호주/캐나다 유학 및 이민용
+- **GRE**: 북미 대학원 입학용
+
+### LLM 모델 및 품질 검증
+
+어원 데이터 생성에 사용된 LLM 모델:
+
+| 모델                   | 용도                | 처리량   |
+| ---------------------- | ------------------- | -------- |
+| gemini-2.5-flash-lite  | 대량 생성           | 36,618개 |
+| gemini-3-flash-preview | 문제 단어 재처리    | 61개     |
+| Claude 4.5 Opus        | 품질 검증 도구 개발 | -        |
+
+품질 검증 프로세스:
+
+1. 병렬 전수조사 (20 workers, 15초)
+2. 문제 단어 식별 및 재처리 (3회 반복)
+3. 고유명사/비표준어 제거 (595개)
+4. 최종 품질 문제: **0개**
 
 ## 단어 시드 및 어원 일괄 생성
 
