@@ -510,3 +510,167 @@ processingMu.Unlock()
 - **품질 검증**: Claude 4.5 Opus (도구 개발 + 분석)
 
 이 전략으로 전체를 고비용 모델로 처리하는 것 대비 약 80% 비용 절감.
+
+---
+
+## 2026-01-22: 형태소 검증 데이터셋 변경 (Colin Goldberg → MorphyNet)
+
+**상황**: LLM이 생성한 잘못된 접사(예: `-ew`, `-eview`)를 필터링하기 위한 화이트리스트 검증 기능 구현 중, 기존 Colin Goldberg 데이터셋에서 `view-` 같은 일반적인 어근이 누락되어 유효한 형태소가 필터링되는 문제 발생.
+
+**선택지**:
+
+1. Colin Goldberg 데이터셋 유지 + 수동으로 누락 어근 추가
+2. MorphyNet 데이터셋으로 전환 (67,412개 영어 파생어)
+3. 형태소 검증 기능 제거
+
+**결정**: Option 2 - MorphyNet 데이터셋으로 전환
+
+**이유**:
+
+1. **포괄적 커버리지**: 225,131개 파생어 엔트리에서 추출
+2. **체계적 구조**: TSV 형식으로 base, derived, affix, type 명확히 구분
+3. **어근 추출 가능**: 접두사/접미사가 붙는 base word들을 roots.json으로 추출
+
+**추출 전략**:
+
+| 파일 | 추출 규칙 | 개수 |
+|------|-----------|------|
+| prefixes.json | `affix` where `type === 'prefix'` | 1,626개 |
+| suffixes.json | `affix` where `type === 'suffix'` | 671개 |
+| roots.json | `base` where `type === 'prefix' OR 'suffix'` | 69,933개 |
+
+**검증 로직**:
+
+```
+접두사/어근 (xxx-): prefixes.json OR roots.json에서 검증
+접미사 (-xxx): suffixes.json에서 검증
+어근 (xxx): 항상 유효 (하이픈 없음)
+```
+
+**소스**: https://github.com/kbatsuren/MorphyNet
+
+---
+
+## 2026-01-22: 형태소 데이터 동적 로딩 (번들 최적화)
+
+**상황**: roots.json이 69,933개(~900KB)로 예상보다 커서 초기 번들 크기가 366KB까지 증가.
+
+**선택지**:
+
+1. JSON minification만 적용 → 효과 미미 (Next.js가 이미 최적화)
+2. 동적 import로 lazy loading
+3. 서버사이드 검증으로 이동
+
+**결정**: Option 2 - 동적 import
+
+**구현**:
+
+```typescript
+// 기존: 정적 import (번들에 포함)
+import prefixesData from '@/data/morphemes/prefixes.json';
+
+// 변경: 동적 import (필요 시 로드)
+const [prefixesData] = await Promise.all([
+  import('@/data/morphemes/prefixes.json').then(m => m.default),
+]);
+```
+
+**결과**:
+
+| 페이지 | 이전 | 이후 | 감소 |
+|--------|------|------|------|
+| `/` (메인) | 366KB | 126KB | **-240KB** |
+| `/explore/[word]` | 352KB | 112KB | **-240KB** |
+
+**트레이드오프**:
+
+| 장점 | 단점 |
+|------|------|
+| 초기 로드 240KB 감소 | 첫 검증 시 ~50ms 지연 |
+| TTI 개선 | 로드 전 검증은 fallback (모두 통과) |
+
+**구현 파일**:
+
+- `frontend/lib/morpheme-validator.ts`: `useMorphemeValidator` hook 추가
+- `frontend/scripts/generate-morpheme-data.js`: MorphyNet TSV 파싱으로 변경
+- `frontend/data/morphemes/roots.json`: 신규 생성
+
+---
+
+## 2026-01-22: 단어 검증 목록 SCOWL로 교체
+
+**상황**: 기존 words.txt (370,105개)에 "revie" 같은 존재하지 않는 유령 단어가 포함됨. 단어 수가 많은 것보다 정확한 단어 목록이 필요.
+
+**선택지**:
+
+| Size | 단어 수 | 설명 |
+|------|---------|------|
+| 60 | 101,368 | 기본 스펠체커 (엄격히 검증됨) |
+| 70 | 135,952 | 대형 스펠체커 |
+| 80 | 279,733 | 게임용 (Scrabble 등) |
+| 95 | 502,163 | 모든 단어 |
+
+**결정**: SCOWL Size 70 + 소유격('s) 제거 + 복수형(-s) 제거
+
+**이유**:
+
+1. **SCOWL 선택**: Firefox, Chrome, LibreOffice 스펠체커의 기반으로 검증된 단어 목록
+2. **Size 70 선택**: 어원 프로젝트에는 "homologize" 같은 파생어도 필요 (Size 60에는 없음)
+3. **소유격 제거**: `teacher's`, `aardvark's` 등 24,057개는 어원 학습에 불필요
+4. **복수형 제거**: 원형이 목록에 존재하는 경우만 제거 (25,112개)
+   - `aardvarks` → `aardvark` 존재 → 제거 ✓
+   - `address` → `addres` 없음 → 유지 ✓
+
+**변경 내용**:
+
+| 단계 | 단어 수 | 제거 |
+|------|---------|------|
+| 기존 | 370,105 | - |
+| SCOWL Size 70 | 135,952 | -234,153 |
+| 소유격('s) 제거 | 111,895 | -24,057 |
+| 복수형(-s) 제거 | **86,783** | -25,112 |
+
+**소스**: http://wordlist.aspell.net/ (SCOWL 2020.12.07)
+
+---
+
+## 2026-01-22: priority_words.txt를 NGSL+NAWL로 교체
+
+**상황**: 기존 priority_words.txt (FrequencyWords 기반 36,305개)에 고유명사, 복수형, 비표준 단어가 포함되어 words.txt와 불일치 발생.
+
+**선택지**:
+
+| 목록 | 단어 수 | 특징 |
+|------|---------|------|
+| FrequencyWords (기존) | 36,305 | OpenSubtitles 빈도 기반, 고유명사 포함 |
+| NGSL + NAWL | ~3,700 | 학술적으로 검증된 고빈도 단어 |
+| Oxford 3000/5000 | 3,000~5,000 | 학습자 사전 기반 |
+| Google 10,000 | 10,000 | Google 빈도 기반 |
+
+**결정**: NGSL 1.2 + NAWL 1.2 사용
+
+**이유**:
+
+1. **학술적 검증**: Cambridge English Corpus 2.73억 단어 기반
+2. **어원 학습 적합**: 라틴어/그리스어 어근 단어 다수 포함
+3. **고유명사/복수형 없음**: 깨끗한 단어 목록
+4. **커버리지**: 영어 텍스트 92% 커버
+
+**변경 내용**:
+
+| 항목 | 이전 | 이후 |
+|------|------|------|
+| priority_words.txt | 36,305개 | **3,596개** |
+| 소스 | FrequencyWords | NGSL 1.2 + NAWL 1.2 |
+| 백업 | - | priority_words.txt.bak |
+
+**처리 과정**:
+
+1. NGSL 1.2 다운로드 (2,809개)
+2. NAWL 1.2 다운로드 (959개)
+3. 병합 및 중복 제거 (3,768개)
+4. words.txt에 있는 단어만 필터링 → **3,596개**
+
+**소스**:
+- https://www.newgeneralservicelist.com/new-general-service-list (NGSL 1.2)
+- https://www.newgeneralservicelist.com/new-general-service-list-1 (NAWL 1.2)
