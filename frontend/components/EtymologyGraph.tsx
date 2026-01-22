@@ -1177,6 +1177,13 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       setSelectedNode(node as GraphNode);
     }
 
+    // 구/숙어 체크: 공백이 포함된 경우 API 호출 없이 경고 표시
+    const nodeLabel = (node.label || '').trim();
+    if (nodeLabel.includes(' ')) {
+      setErrorMessage('구/숙어는 어원을 탐색할 수 없습니다');
+      return;
+    }
+
     if (node.type === 'component') {
       const label = node.label.toLowerCase();
       const cleanLabel = label.replace(/[-–—]/g, '');
