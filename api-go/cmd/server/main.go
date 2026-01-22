@@ -68,6 +68,8 @@ func main() {
 	authHandler := handler.NewAuthHandler(db, cfg.JWTSecret, googleConfig, cfg.FrontendURL)
 	historyHandler := handler.NewHistoryHandler(db)
 	fillHandler := handler.NewFillHandler(db, redisCache, cfg.LLMProxyURL)
+	errorReportHandler := handler.NewErrorReportHandler(db)
+	adminHandler := handler.NewAdminHandler(db)
 
 	// Setup router
 	r := gin.Default()
@@ -139,6 +141,22 @@ func main() {
 			historyGroup.GET("/dates/:date", historyHandler.GetDateDetail)
 			historyGroup.DELETE("/:id", historyHandler.Delete)
 			historyGroup.DELETE("", historyHandler.DeleteAll)
+		}
+
+		// Error reports (requires auth)
+		errorReportsGroup := api.Group("/error-reports", middleware.AuthMiddleware(cfg.JWTSecret))
+		{
+			errorReportsGroup.POST("", errorReportHandler.Submit)
+			errorReportsGroup.GET("/my", errorReportHandler.ListMy)
+		}
+
+		// Admin dashboard routes (admin only)
+		adminDashboardGroup := api.Group("/admin", middleware.AdminMiddleware(cfg.JWTSecret, cfg.AdminEmails))
+		{
+			adminDashboardGroup.GET("/stats", adminHandler.GetStats)
+			adminDashboardGroup.GET("/error-reports", adminHandler.ListErrorReports)
+			adminDashboardGroup.PUT("/error-reports/:id", adminHandler.UpdateErrorReport)
+			adminDashboardGroup.GET("/search-analytics", adminHandler.GetSearchAnalytics)
 		}
 	}
 

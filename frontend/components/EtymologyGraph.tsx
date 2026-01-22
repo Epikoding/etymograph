@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { forceCollide, forceX, forceY } from 'd3-force';
-import { X, RefreshCw } from 'lucide-react';
+import { X, RefreshCw, Flag } from 'lucide-react';
+import ErrorReportDialog from './ErrorReportDialog';
 import { api, ApiError, type SupportedLanguage } from '@/lib/api';
 import type { Etymology } from '@/types/word';
+import { useMorphemeValidator } from '@/lib/morpheme-validator';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   ssr: false,
@@ -21,6 +23,7 @@ interface GraphNode {
   color?: string;
   size?: number;
   etymology?: Etymology; // Full etymology data for word nodes
+  wordId?: number; // Database ID for error reporting
   x?: number; // 초기 x 위치
   y?: number; // 초기 y 위치
   fx?: number; // 고정 x 위치
@@ -126,6 +129,7 @@ function getKoreanMeaning(meaning: string): string {
 }
 
 export default function EtymologyGraph({ initialWord, language = 'Korean', onWordSelect, onInitialLoad }: EtymologyGraphProps) {
+  const { filterValidComponents, hasValidComponents } = useMorphemeValidator();
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [links, setLinks] = useState<GraphLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -147,6 +151,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
   const [isComparing, setIsComparing] = useState(false);
   const [prevEtymology, setPrevEtymology] = useState<Etymology | null>(null);
   const [refreshLoading, setRefreshLoading] = useState(false);
+  const [isErrorReportOpen, setIsErrorReportOpen] = useState(false);
   const loadedWordsRef = useRef<Set<string>>(new Set());
   const nodesRef = useRef<GraphNode[]>([]); // Track nodes in ref for reliable duplicate detection
   const linksRef = useRef<GraphLink[]>([]); // Track links in ref for reliable drag detection
@@ -442,6 +447,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           nodeToUpdate.type = 'word';
           nodeToUpdate.color = COLORS.word;
           nodeToUpdate.size = 14;
+          nodeToUpdate.wordId = wordData.id;
           // Trigger re-render without creating new objects
           setNodes([...nodesRef.current]);
         }
@@ -482,6 +488,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           color: COLORS.word,
           size: 14,
           etymology: etymology || undefined,
+          wordId: wordData.id,
           x: wordX,
           y: wordY,
           fx: wordX,
@@ -523,7 +530,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       if (!isFirstLevel) {
         if (etymology?.origin?.root) totalChildCount++;
         if (etymology?.origin?.components) {
-          const comps = etymology.origin.components.filter((c: { part: string }) => c.part !== '-');
+          const comps = filterValidComponents(etymology.origin.components);
           totalChildCount += comps.length;
         }
         if (etymology?.derivatives) totalChildCount += etymology.derivatives.length;
@@ -623,7 +630,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
           // Components branch from root
           if (etymology.origin.components) {
-            const validComponents = etymology.origin.components.filter((c: { part: string }) => c.part !== '-');
+            const validComponents = filterValidComponents(etymology.origin.components);
             const compCount = validComponents.length;
             validComponents.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
               const koreanMeaning = comp.meaningLocalized || comp.meaningKo || getKoreanMeaning(comp.meaning);
@@ -687,7 +694,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           }
         } else if (etymology.origin.components) {
           // No root, components connect directly to word
-          const validComponents = etymology.origin.components.filter((c: { part: string }) => c.part !== '-');
+          const validComponents = filterValidComponents(etymology.origin.components);
           const compCount = validComponents.length;
           validComponents.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
             const koreanMeaning = comp.meaningLocalized || comp.meaningKo || getKoreanMeaning(comp.meaning);
@@ -1188,8 +1195,8 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       const label = node.label.toLowerCase();
       const cleanLabel = label.replace(/[-–—]/g, '');
 
-      // 접미사: -로 시작 (예: -er, -ing, -tion)
-      if (label.startsWith('-') && cleanLabel.length >= 2) {
+      // 접미사: -로 시작 (예: -y, -er, -ing, -tion)
+      if (label.startsWith('-') && cleanLabel.length >= 1) {
         loadWord(label, node.id, node.id);
         onWordSelect?.(label);
         return;
@@ -1394,14 +1401,25 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
               <h2 className="text-xl font-bold text-white capitalize">{selectedNode.label}</h2>
               <div className="flex items-center gap-2">
                 {selectedNode.type === 'word' && !isComparing && (
-                  <button
-                    onClick={handleRefreshEtymology}
-                    disabled={refreshLoading}
-                    className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
-                    title="새 설명 생성"
-                  >
-                    <RefreshCw className={`w-5 h-5 text-slate-400 ${refreshLoading ? 'animate-spin' : ''}`} />
-                  </button>
+                  <>
+                    <button
+                      onClick={handleRefreshEtymology}
+                      disabled={refreshLoading}
+                      className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                      title="새 설명 생성"
+                    >
+                      <RefreshCw className={`w-5 h-5 text-slate-400 ${refreshLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                    {selectedNode.wordId && (
+                      <button
+                        onClick={() => setIsErrorReportOpen(true)}
+                        className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors"
+                        title="오류 신고"
+                      >
+                        <Flag className="w-5 h-5 text-slate-400" />
+                      </button>
+                    )}
+                  </>
                 )}
                 <button
                   onClick={() => {
@@ -1553,9 +1571,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                       {selectedNode.etymology.origin.rootMeaning && (
                         <p className="text-sm text-slate-400">{selectedNode.etymology.origin.rootMeaning}</p>
                       )}
-                      {selectedNode.etymology.origin.components?.filter(c => c.part !== '-').length > 0 && (
+                      {hasValidComponents(selectedNode.etymology.origin.components) && (
                         <div className="flex flex-wrap gap-2 mt-2">
-                          {selectedNode.etymology.origin.components.filter(c => c.part !== '-').map((comp, i) => (
+                          {filterValidComponents(selectedNode.etymology.origin.components).map((comp, i) => (
                             <div key={i} className="bg-purple-500/20 px-2 py-1 rounded text-sm">
                               <span className="text-purple-300 font-medium">{comp.part}</span>
                               <span className="text-slate-400 ml-1">
@@ -1800,6 +1818,16 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         height={dimensions.height}
         backgroundColor="transparent"
       />
+
+      {/* Error Report Dialog */}
+      {selectedNode?.wordId && (
+        <ErrorReportDialog
+          isOpen={isErrorReportOpen}
+          onClose={() => setIsErrorReportOpen(false)}
+          wordId={selectedNode.wordId}
+          word={selectedNode.label}
+        />
+      )}
     </div>
   );
 }

@@ -25,6 +25,13 @@ CRITICAL COMPONENT FORMAT RULES - FOR ENGLISH VOCABULARY LEARNING:
    - "transportation" → ["trans-", "port-", "-ation"]
    - "incredible" → ["in-", "cred-", "-ible"]
 5. This format helps learners identify common English word patterns and find related words
+6. ONLY use REAL, recognized English affixes and roots - do NOT invent components
+   - Verify each component is a legitimate morpheme used in English word formation
+   - Common prefixes: re-, un-, pre-, dis-, mis-, anti-, inter-, trans-, sub-, etc.
+   - Common suffixes: -tion, -ment, -ness, -able, -ible, -ful, -less, -er, -or, -ist, etc.
+7. Example of WRONG analysis (DO NOT do this):
+   - "review" → ["r-", "-eview"] or ["rev-", "-ew"] (❌ These are NOT real morphemes)
+   - Correct: "review" → ["re-", "view"] (✓ "re-" is a real prefix meaning "again")
 
 ROOT AND LANGUAGE STANDARDIZATION RULES - CRITICAL FOR GRAPH CONSISTENCY:
 1. ALL ENGLISH WORDS MUST BE LOWERCASE:

@@ -27,6 +27,7 @@ func Migrate(db *gorm.DB) error {
 		&model.User{},
 		&model.RefreshToken{},
 		&model.SearchHistory{},
+		&model.ErrorReport{},
 	)
 	if err != nil {
 		return err

@@ -1,5 +1,6 @@
 import type { Word, Session, SessionGraph, DerivativesData, SynonymsData } from '@/types/word';
 import type { SearchHistoryResponse, HistoryDatesResponse, HistoryDateDetailResponse } from '@/types/auth';
+import type { ErrorReport, ErrorReportsResponse, SubmitErrorReportRequest, DashboardStats, SearchAnalyticsResponse, ReportStatus } from '@/types/error-report';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -199,6 +200,50 @@ class ApiClient {
 
   async getHistoryDateDetail(date: string): Promise<HistoryDateDetailResponse> {
     return this.fetch<HistoryDateDetailResponse>(`/history/dates/${date}`);
+  }
+
+  // Error Reports
+  async submitErrorReport(request: SubmitErrorReportRequest): Promise<ErrorReport> {
+    return this.fetch<ErrorReport>('/error-reports', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async getMyErrorReports(page: number = 1, limit: number = 20): Promise<ErrorReportsResponse> {
+    return this.fetch<ErrorReportsResponse>(`/error-reports/my?page=${page}&limit=${limit}`);
+  }
+
+  // Admin APIs
+  async getAdminStats(): Promise<DashboardStats> {
+    return this.fetch<DashboardStats>('/admin/stats');
+  }
+
+  async getAdminErrorReports(
+    page: number = 1,
+    limit: number = 20,
+    status?: ReportStatus,
+    issueType?: string
+  ): Promise<ErrorReportsResponse> {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (status) params.append('status', status);
+    if (issueType) params.append('issueType', issueType);
+    return this.fetch<ErrorReportsResponse>(`/admin/error-reports?${params.toString()}`);
+  }
+
+  async updateErrorReport(
+    id: number,
+    status: ReportStatus,
+    reviewNote?: string
+  ): Promise<ErrorReport> {
+    return this.fetch<ErrorReport>(`/admin/error-reports/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, reviewNote }),
+    });
+  }
+
+  async getSearchAnalytics(days: number = 30, limit: number = 20): Promise<SearchAnalyticsResponse> {
+    return this.fetch<SearchAnalyticsResponse>(`/admin/search-analytics?days=${days}&limit=${limit}`);
   }
 }
 
