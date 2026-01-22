@@ -1209,8 +1209,19 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         return;
       }
 
-      // 그 외는 어근이므로 검색하지 않음 (예: bike, teach)
-      return;
+      // 어근(stem): 하이픈 없는 구성요소 (예: esse, view, bike)
+      // words.txt에 있는 영어 단어인 경우만 검색
+      if (cleanLabel.length >= 2) {
+        api.wordExists(cleanLabel).then((exists) => {
+          if (exists) {
+            loadWord(cleanLabel, node.id, node.id);
+            onWordSelect?.(cleanLabel);
+          } else {
+            setErrorMessage(`"${cleanLabel}"은(는) 영어 단어가 아닌 어근입니다`);
+          }
+        });
+        return;
+      }
     } else if (node.type === 'derivative') {
       // Pass the derivative node ID as parent and as clicked node for loading indicator
       loadWord(node.label, node.id, node.id);

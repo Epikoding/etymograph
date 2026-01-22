@@ -593,3 +593,17 @@ func (h *WordHandler) GetUnfilled(c *gin.Context) {
 		"offset": offset,
 	})
 }
+
+// Exists checks if a word exists in the local dictionary (words.txt)
+func (h *WordHandler) Exists(c *gin.Context) {
+	wordParam := c.Param("word")
+	normalizedWord := strings.ToLower(strings.TrimSpace(wordParam))
+
+	if normalizedWord == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "word is required"})
+		return
+	}
+
+	exists := h.wordValidator.IsInLocalDict(normalizedWord)
+	c.JSON(http.StatusOK, gin.H{"exists": exists})
+}

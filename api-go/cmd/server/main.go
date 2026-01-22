@@ -107,6 +107,7 @@ func main() {
 		// Words (with optional auth for history tracking)
 		api.GET("/words/suggest", wordHandler.Suggest)
 		api.GET("/words/unfilled", wordHandler.GetUnfilled)
+		api.GET("/words/:word/exists", wordHandler.Exists)
 		api.POST("/words/search", middleware.OptionalAuthMiddleware(cfg.JWTSecret), wordHandler.Search)
 		api.GET("/words/:word/etymology", wordHandler.GetEtymology)
 		api.GET("/words/:word/derivatives", wordHandler.GetDerivatives)

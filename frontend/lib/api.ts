@@ -106,6 +106,20 @@ class ApiClient {
     return this.fetch<Word>(`/words/${encodeURIComponent(word)}/etymology?language=${lang}`);
   }
 
+  // Check if word exists in dictionary (words.txt)
+  async wordExists(word: string): Promise<boolean> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/api/words/${encodeURIComponent(word)}/exists`
+      );
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data.exists === true;
+    } catch {
+      return false;
+    }
+  }
+
   async getDerivatives(word: string, language?: SupportedLanguage): Promise<{ word: string; language: string; derivatives: Array<{ word: string; meaning: string }> }> {
     const lang = language || this._language;
     return this.fetch<{ word: string; language: string; derivatives: Array<{ word: string; meaning: string }> }>(`/words/${encodeURIComponent(word)}/derivatives?language=${lang}`);
