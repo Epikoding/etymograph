@@ -19,18 +19,17 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - DATABASE_URL=postgres://etymograph:etymograph@postgres:5432/etymograph?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER:-etymograph}:${POSTGRES_PASSWORD:-etymograph}@postgres:5432/${POSTGRES_DB:-etymograph}?sslmode=disable
       - REDIS_URL=redis://redis:6379
       - LLM_PROXY_URL=http://llm-proxy:8081
       - RATE_LIMIT_URL=http://rate-limiter:8080
       - PORT=4000
-      - SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-false}
-      - SCHEDULER_INTERVAL=${SCHEDULER_INTERVAL:-5s}
       - JWT_SECRET=${JWT_SECRET:-your-256-bit-secret-change-in-production}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL:-http://localhost:4000/auth/google/callback}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - ADMIN_EMAILS=${ADMIN_EMAILS}
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,13 +77,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=etymograph
-      - POSTGRES_PASSWORD=etymograph
-      - POSTGRES_DB=etymograph
+      - POSTGRES_USER=${POSTGRES_USER:-etymograph}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-etymograph}
+      - POSTGRES_DB=${POSTGRES_DB:-etymograph}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U etymograph"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-etymograph}"]
       interval: 5s
       timeout: 5s
       retries: 5
