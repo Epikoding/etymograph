@@ -13,14 +13,13 @@ import type { EtymologyComponent } from '@/types/word';
 // 캐시된 데이터 (싱글톤)
 let cachedPrefixes: Set<string> | null = null;
 let cachedSuffixes: Set<string> | null = null;
-let cachedRoots: Set<string> | null = null;
 let loadingPromise: Promise<void> | null = null;
 
 /**
  * 형태소 데이터를 동적으로 로드합니다.
  */
 async function loadMorphemeData(): Promise<void> {
-  if (cachedPrefixes && cachedSuffixes && cachedRoots) {
+  if (cachedPrefixes && cachedSuffixes) {
     return;
   }
 
@@ -29,15 +28,13 @@ async function loadMorphemeData(): Promise<void> {
   }
 
   loadingPromise = (async () => {
-    const [prefixesData, suffixesData, rootsData] = await Promise.all([
+    const [prefixesData, suffixesData] = await Promise.all([
       import('@/data/morphemes/prefixes.json').then((m) => m.default),
       import('@/data/morphemes/suffixes.json').then((m) => m.default),
-      import('@/data/morphemes/roots.json').then((m) => m.default),
     ]);
 
     cachedPrefixes = new Set(prefixesData as string[]);
     cachedSuffixes = new Set(suffixesData as string[]);
-    cachedRoots = new Set(rootsData as string[]);
   })();
 
   return loadingPromise;
@@ -52,7 +49,7 @@ function isValidAffixSync(part: string): boolean {
   }
 
   // 데이터가 로드되지 않았으면 일단 통과 (fallback)
-  if (!cachedPrefixes || !cachedSuffixes || !cachedRoots) {
+  if (!cachedPrefixes || !cachedSuffixes) {
     return true;
   }
 
@@ -60,7 +57,7 @@ function isValidAffixSync(part: string): boolean {
   const startsWithDash = normalized.startsWith('-');
   const endsWithDash = normalized.endsWith('-');
 
-  // 어근 (하이픈 없음): 항상 유효
+  // 어근 (하이픈 없음): 항상 유효 (클릭 시 words.txt로 검증)
   if (!startsWithDash && !endsWithDash) {
     return true;
   }
@@ -70,15 +67,14 @@ function isValidAffixSync(part: string): boolean {
     return cachedSuffixes.has(normalized);
   }
 
-  // 접두사 또는 어근 (`-`로 끝남): prefixes.json 또는 roots.json에서 검증
+  // 접두사 (`-`로 끝남): prefixes.json에서 검증
   if (endsWithDash && !startsWithDash) {
-    return cachedPrefixes.has(normalized) || cachedRoots.has(normalized);
+    return cachedPrefixes.has(normalized);
   }
 
-  // 양쪽에 dash가 있는 경우 (embedded morpheme)
+  // 양쪽에 dash가 있는 경우 (embedded morpheme): prefixes.json에서 검증
   if (startsWithDash && endsWithDash) {
-    const withTrailingDash = normalized.slice(1); // "-view-" → "view-"
-    return cachedPrefixes.has(normalized) || cachedRoots.has(withTrailingDash);
+    return cachedPrefixes.has(normalized);
   }
 
   return false;
@@ -111,7 +107,7 @@ function hasValidComponentsSync(
  */
 export function useMorphemeValidator() {
   const [isLoaded, setIsLoaded] = useState(
-    !!(cachedPrefixes && cachedSuffixes && cachedRoots)
+    !!(cachedPrefixes && cachedSuffixes)
   );
 
   useEffect(() => {
