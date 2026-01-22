@@ -674,3 +674,35 @@ const [prefixesData] = await Promise.all([
 **소스**:
 - https://www.newgeneralservicelist.com/new-general-service-list (NGSL 1.2)
 - https://www.newgeneralservicelist.com/new-general-service-list-1 (NAWL 1.2)
+
+---
+
+## 2026-01-22: roots.json 삭제 (형태소 검증 간소화)
+
+**상황**: 어근 클릭 시 words.txt API 검증 기능이 추가되어 roots.json의 역할이 중복됨.
+
+**기존 구조**:
+
+| 파일 | 내용 | 크기 |
+|------|------|------|
+| prefixes.json | 접두사 | 1,626개 |
+| suffixes.json | 접미사 | 671개 |
+| roots.json | 어근 | 69,933개 (~900KB) |
+
+**결정**: roots.json 삭제
+
+**이유**:
+
+1. **중복 기능**: 어근 클릭 시 `GET /api/words/:word/exists`로 words.txt 검증
+2. **번들 크기 감소**: ~900KB 절약
+3. **단순화**: 접두사/접미사만 화이트리스트로 검증
+
+**변경된 검증 로직**:
+
+| 유형 | 이전 | 이후 |
+|------|------|------|
+| 접미사 `-er` | suffixes.json | suffixes.json |
+| 접두사 `re-` | prefixes.json OR roots.json | prefixes.json |
+| 어근 `view` | 항상 통과 | 항상 통과 (클릭 시 words.txt 검증) |
+
+**삭제된 파일**: `frontend/data/morphemes/roots.json`
