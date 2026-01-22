@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
         - name: api
-          image: etymograph/api:latest
+          image: ghcr.io/epikoding/etymograph-api-go:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 4000
           envFrom:
@@ -34,13 +35,13 @@ spec:
               cpu: "1000m"
           livenessProbe:
             httpGet:
-              path: /api/health
+              path: /health
               port: 4000
             initialDelaySeconds: 15
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /api/health
+              path: /health
               port: 4000
             initialDelaySeconds: 10
             periodSeconds: 5

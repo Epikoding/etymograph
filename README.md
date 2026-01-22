@@ -149,6 +149,15 @@ etymograph/
 | POST | /api/sessions/:id/words | 세션에 단어 추가 |
 | GET | /api/export/:sessionId | Export (format=json\|csv\|md) |
 
+### 어원 일괄 생성 API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/words/unfilled | etymology가 null인 단어 목록 |
+| POST | /api/words/fill-etymology | 어원 일괄 생성 Job 시작 |
+| GET | /api/words/fill-status/:jobId | Job 진행 상황 조회 |
+| POST | /api/words/fill-etymology/stop | 진행 중인 Job 중단 |
+
 ### 인증 API (OAuth 2.0 + JWT)
 
 | Method | Endpoint | Description | 인증 |
@@ -218,3 +227,21 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 | LLM | Gemini API / Ollama (Qwen3:8b) |
 | Auth | Google OAuth 2.0, JWT |
 | Infra | Docker Compose, k3s (optional) |
+
+## 단어 시드 및 어원 일괄 생성
+
+```bash
+# 1. 단어 시드 (최초 1회)
+docker compose exec api ./seed
+
+# 2. 어원 일괄 생성 시작
+curl -X POST "http://localhost:4000/api/words/fill-etymology" \
+  -H "Content-Type: application/json" \
+  -d '{"language":"Korean","batchSize":100,"delayMs":2000}'
+
+# 3. 진행 상황 확인
+curl "http://localhost:4000/api/words/fill-status/<jobId>"
+
+# 4. 필요시 중단
+curl -X POST "http://localhost:4000/api/words/fill-etymology/stop"
+```

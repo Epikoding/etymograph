@@ -1,0 +1,83 @@
+name: Build, Push and Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/etymograph
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      short_sha: ${{ steps.vars.outputs.short_sha }}
+
+    strategy:
+      matrix:
+        service: [frontend, api-go, llm-proxy, rate-limiter]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set short SHA
+        id: vars
+        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update image tags with kustomize
+        env:
+          SHORT_SHA: ${{ needs.build.outputs.short_sha }}
+        run: |
+          cd k8s
+
+          # Use kustomize to set image tags (match current image names in deployment files)
+          kustomize edit set image \
+            ghcr.io/epikoding/etymograph-frontend:latest=ghcr.io/epikoding/etymograph-frontend:sha-${SHORT_SHA} \
+            ghcr.io/epikoding/etymograph-api-go:latest=ghcr.io/epikoding/etymograph-api-go:sha-${SHORT_SHA} \
+            ghcr.io/epikoding/etymograph-llm-proxy:latest=ghcr.io/epikoding/etymograph-llm-proxy:sha-${SHORT_SHA} \
+            ghcr.io/epikoding/etymograph-rate-limiter:latest=ghcr.io/epikoding/etymograph-rate-limiter:sha-${SHORT_SHA}
+
+      - name: Deploy to k3s
+        run: |
+          kubectl apply -k k8s/
+          kubectl -n etymograph rollout status deployment/frontend --timeout=300s
+          kubectl -n etymograph rollout status deployment/api --timeout=300s
+          kubectl -n etymograph rollout status deployment/llm-proxy --timeout=300s
+          kubectl -n etymograph rollout status deployment/rate-limiter --timeout=300s

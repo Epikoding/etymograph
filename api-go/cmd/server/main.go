@@ -9,12 +9,10 @@ import (
 
 	"github.com/etymograph/api/internal/auth"
 	"github.com/etymograph/api/internal/cache"
-	"github.com/etymograph/api/internal/client"
 	"github.com/etymograph/api/internal/config"
 	"github.com/etymograph/api/internal/database"
 	"github.com/etymograph/api/internal/handler"
 	"github.com/etymograph/api/internal/middleware"
-	"github.com/etymograph/api/internal/scheduler"
 	"github.com/etymograph/api/internal/validator"
 	"github.com/gin-gonic/gin"
 )
@@ -32,6 +30,12 @@ func main() {
 	if err := database.Migrate(db); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
+
+	// Create partial index for unfilled words (etymology IS NULL)
+	// This index helps efficiently query words that need etymology to be filled
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_words_etymology_null
+		ON words(language, id)
+		WHERE etymology IS NULL`)
 
 	// Initialize Redis cache
 	var redisCache *cache.RedisCache
@@ -63,25 +67,7 @@ func main() {
 	exportHandler := handler.NewExportHandler(db)
 	authHandler := handler.NewAuthHandler(db, cfg.JWTSecret, googleConfig, cfg.FrontendURL)
 	historyHandler := handler.NewHistoryHandler(db)
-
-	// Initialize and start background scheduler if enabled
-	var etymologyScheduler *scheduler.EtymologyScheduler
-	if cfg.SchedulerEnabled {
-		llmClient := client.NewLLMClient(cfg.LLMProxyURL)
-		var err error
-		etymologyScheduler, err = scheduler.NewEtymologyScheduler(db, llmClient, scheduler.SchedulerConfig{
-			WordListPath: "data/priority_words.txt",
-			Interval:     cfg.SchedulerInterval,
-			Languages:    []string{"Korean", "Japanese", "Chinese"},
-		})
-		if err != nil {
-			log.Printf("Warning: Failed to initialize scheduler: %v", err)
-		} else {
-			ctx := context.Background()
-			go etymologyScheduler.Start(ctx)
-			log.Println("Background etymology scheduler started")
-		}
-	}
+	fillHandler := handler.NewFillHandler(db, redisCache, cfg.LLMProxyURL)
 
 	// Setup router
 	r := gin.Default()
@@ -103,15 +89,6 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// Scheduler status
-	r.GET("/scheduler/status", func(c *gin.Context) {
-		if etymologyScheduler != nil {
-			c.JSON(200, etymologyScheduler.GetStatus())
-		} else {
-			c.JSON(200, gin.H{"enabled": false, "message": "Scheduler is disabled"})
-		}
-	})
-
 	// Auth routes (public)
 	authGroup := r.Group("/auth")
 	{
@@ -127,6 +104,7 @@ func main() {
 	{
 		// Words (with optional auth for history tracking)
 		api.GET("/words/suggest", wordHandler.Suggest)
+		api.GET("/words/unfilled", wordHandler.GetUnfilled)
 		api.POST("/words/search", middleware.OptionalAuthMiddleware(cfg.JWTSecret), wordHandler.Search)
 		api.GET("/words/:word/etymology", wordHandler.GetEtymology)
 		api.GET("/words/:word/derivatives", wordHandler.GetDerivatives)
@@ -134,6 +112,12 @@ func main() {
 		api.POST("/words/:word/refresh", wordHandler.RefreshEtymology)
 		api.POST("/words/:word/apply", wordHandler.ApplyEtymology)
 		api.POST("/words/:word/revert", wordHandler.RevertEtymology)
+
+		// Etymology fill job management
+		api.POST("/words/fill-etymology", fillHandler.StartFill)
+		api.GET("/words/fill-status/:jobId", fillHandler.GetFillStatus)
+		api.POST("/words/fill-etymology/stop", fillHandler.StopFill)
+		api.GET("/words/fill-jobs", fillHandler.ListJobs)
 
 		// Sessions
 		api.POST("/sessions", sessionHandler.Create)

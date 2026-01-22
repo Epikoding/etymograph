@@ -523,3 +523,73 @@ func (h *WordHandler) saveSearchHistory(userID int64, word string, language stri
 		log.Printf("Failed to save search history: %v", err)
 	}
 }
+
+// UnfilledWord represents a word without etymology
+type UnfilledWord struct {
+	ID       int64  `json:"id"`
+	Word     string `json:"word"`
+	Language string `json:"language"`
+}
+
+// GetUnfilled returns words with null etymology (paginated)
+func (h *WordHandler) GetUnfilled(c *gin.Context) {
+	language := c.Query("language")
+	if language == "" {
+		language = "ko"
+	} else {
+		language = getLanguageKey(language)
+	}
+
+	// Parse pagination params
+	limit := 100
+	offset := 0
+
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 1000 {
+			limit = parsed
+		}
+	}
+
+	if o := c.Query("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	// Get total count
+	var total int64
+	h.db.Model(&model.Word{}).
+		Where("language = ? AND (etymology IS NULL OR etymology = 'null'::jsonb OR etymology = '{}'::jsonb)", language).
+		Count(&total)
+
+	// Get unfilled words
+	var words []model.Word
+	result := h.db.Select("id, word, language").
+		Where("language = ? AND (etymology IS NULL OR etymology = 'null'::jsonb OR etymology = '{}'::jsonb)", language).
+		Order("id ASC").
+		Limit(limit).
+		Offset(offset).
+		Find(&words)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch unfilled words"})
+		return
+	}
+
+	// Convert to response format
+	unfilledWords := make([]UnfilledWord, len(words))
+	for i, w := range words {
+		unfilledWords[i] = UnfilledWord{
+			ID:       w.ID,
+			Word:     w.Word,
+			Language: w.Language,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"words":  unfilledWords,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
+}

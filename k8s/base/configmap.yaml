@@ -19,4 +19,4 @@ data:
   RATE_LIMITER_PORT: "8080"
 
   # Frontend Configuration
-  NEXT_PUBLIC_API_URL: "http://api:4000"
+  NEXT_PUBLIC_API_URL: "https://wordtree.wiki"

@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
         - name: rate-limiter
-          image: etymograph/rate-limiter:latest
+          image: ghcr.io/epikoding/etymograph-rate-limiter:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           env:

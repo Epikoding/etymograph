@@ -8,7 +8,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
 spec:
   rules:
-    - host: etymograph.local
+    - host: wordtree.wiki
       http:
         paths:
           - path: /
@@ -37,14 +37,14 @@ spec:
     - web
     - websecure
   routes:
-    - match: Host(`etymograph.local`) && PathPrefix(`/api`)
+    - match: Host(`wordtree.wiki`) && PathPrefix(`/api`)
       kind: Rule
       services:
         - name: api
           port: 4000
       middlewares:
         - name: rate-limit
-    - match: Host(`etymograph.local`)
+    - match: Host(`wordtree.wiki`)
       kind: Rule
       services:
         - name: frontend
