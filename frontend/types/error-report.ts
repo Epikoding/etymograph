@@ -1,4 +1,4 @@
-export type IssueType = 'etymology' | 'definition' | 'derivative' | 'component' | 'other';
+export type IssueType = 'etymology' | 'definition' | 'derivative' | 'component' | 'synonym' | 'other';
 
 export type ReportStatus = 'pending' | 'resolved' | 'dismissed';
 
@@ -56,6 +56,7 @@ export const ISSUE_TYPE_LABELS: Record<IssueType, string> = {
   definition: '정의/뜻 오류',
   derivative: '파생어 오류',
   component: '구성요소 오류',
+  synonym: '동의어 오류',
   other: '기타',
 };
 

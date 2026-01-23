@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
@@ -12,22 +12,29 @@ interface ErrorReportDialogProps {
   onClose: () => void;
   wordId: number;
   word: string;
+  defaultIssueType?: IssueType;
 }
 
-const ISSUE_TYPES: IssueType[] = ['etymology', 'definition', 'derivative', 'component', 'other'];
+const ISSUE_TYPES: IssueType[] = ['etymology', 'definition', 'derivative', 'component', 'synonym', 'other'];
 
 export default function ErrorReportDialog({
   isOpen,
   onClose,
   wordId,
   word,
+  defaultIssueType = 'etymology',
 }: ErrorReportDialogProps) {
   const { isAuthenticated, login } = useAuth();
-  const [issueType, setIssueType] = useState<IssueType>('etymology');
+  const [issueType, setIssueType] = useState<IssueType>(defaultIssueType);
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Sync issueType when defaultIssueType changes (e.g., different flag buttons)
+  useEffect(() => {
+    setIssueType(defaultIssueType);
+  }, [defaultIssueType]);
 
   if (!isOpen) return null;
 
@@ -52,7 +59,7 @@ export default function ErrorReportDialog({
         onClose();
         setSuccess(false);
         setDescription('');
-        setIssueType('etymology');
+        setIssueType(defaultIssueType);
       }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : '신고 제출에 실패했습니다.');

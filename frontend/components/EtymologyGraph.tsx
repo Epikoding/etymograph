@@ -152,6 +152,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
   const [, setAnimationTick] = useState(0); // 애니메이션용 리렌더 트리거
   const [refreshLoading, setRefreshLoading] = useState(false);
   const [isErrorReportOpen, setIsErrorReportOpen] = useState(false);
+  const [errorReportIssueType, setErrorReportIssueType] = useState<'etymology' | 'definition' | 'derivative' | 'component' | 'synonym' | 'other'>('etymology');
   // Revision system state
   const [currentRevision, setCurrentRevision] = useState<number>(0);
   const [savedRevision, setSavedRevision] = useState<number>(0); // User's saved preference
@@ -1561,7 +1562,10 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                     )}
                     {selectedNode.wordId && (
                       <button
-                        onClick={() => setIsErrorReportOpen(true)}
+                        onClick={() => {
+                          setErrorReportIssueType('etymology');
+                          setIsErrorReportOpen(true);
+                        }}
                         className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors"
                         title="오류 신고"
                       >
@@ -1584,7 +1588,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
             {/* Revision Selector */}
             {totalRevisions > 1 && (
-              <div className="px-4 py-2 border-b border-slate-700 relative flex items-center gap-2 h-10">
+              <div className="px-4 py-2 border-b border-slate-700 relative flex items-center justify-end gap-2 h-10">
                 <button
                   onClick={() => setShowRevisionDropdown(!showRevisionDropdown)}
                   className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
@@ -1614,7 +1618,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                   </div>
                 )}
                 {showRevisionDropdown && (
-                  <div className="absolute top-full left-4 mt-1 bg-slate-700 rounded-lg shadow-lg overflow-hidden z-30">
+                  <div className="absolute top-full right-4 mt-1 bg-slate-700 rounded-lg shadow-lg overflow-hidden z-30">
                     {revisions.map((rev) => (
                       <button
                         key={rev.revisionNumber}
@@ -1689,7 +1693,21 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
                 {/* Etymology */}
                 <section>
-                  <h3 className="text-sm font-semibold text-indigo-400 mb-2">어원</h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-indigo-400">어원</h3>
+                    {selectedNode.wordId && (
+                      <button
+                        onClick={() => {
+                          setErrorReportIssueType('component');
+                          setIsErrorReportOpen(true);
+                        }}
+                        className="p-1 hover:bg-slate-700 rounded transition-colors"
+                        title="구성요소 오류 신고"
+                      >
+                        <Flag className="w-3.5 h-3.5 text-slate-500 hover:text-slate-400" />
+                      </button>
+                    )}
+                  </div>
                   {selectedNode.etymology.origin && (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -1727,7 +1745,21 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                 {/* Related Suffixes/Prefixes - 접미사/접두사 전용 */}
                 {((selectedNode.etymology as any).relatedSuffixes || (selectedNode.etymology as any).relatedPrefixes) && (
                   <section>
-                    <h3 className="text-sm font-semibold text-indigo-400 mb-2">관련 접사</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-indigo-400">관련 접사</h3>
+                      {selectedNode.wordId && (
+                        <button
+                          onClick={() => {
+                            setErrorReportIssueType('component');
+                            setIsErrorReportOpen(true);
+                          }}
+                          className="p-1 hover:bg-slate-700 rounded transition-colors"
+                          title="관련 접사 오류 신고"
+                        >
+                          <Flag className="w-3.5 h-3.5 text-slate-500 hover:text-slate-400" />
+                        </button>
+                      )}
+                    </div>
                     <div className="space-y-2">
                       {((selectedNode.etymology as any).relatedSuffixes || (selectedNode.etymology as any).relatedPrefixes || []).map((related: any, i: number) => (
                         <div key={i} className="bg-slate-900/50 rounded-lg p-3">
@@ -1804,7 +1836,21 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                 {/* Synonyms */}
                 {selectedNode.etymology.synonyms && selectedNode.etymology.synonyms.length > 0 && (
                   <section>
-                    <h3 className="text-sm font-semibold text-indigo-400 mb-2">동의어</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-indigo-400">동의어</h3>
+                      {selectedNode.wordId && (
+                        <button
+                          onClick={() => {
+                            setErrorReportIssueType('synonym');
+                            setIsErrorReportOpen(true);
+                          }}
+                          className="p-1 hover:bg-slate-700 rounded transition-colors"
+                          title="동의어 오류 신고"
+                        >
+                          <Flag className="w-3.5 h-3.5 text-slate-500 hover:text-slate-400" />
+                        </button>
+                      )}
+                    </div>
                     <div className="space-y-2">
                       {selectedNode.etymology.synonyms.map((synonym, i) => (
                         <div key={i} className="bg-purple-500/10 rounded-lg p-3 border border-purple-500/30">
@@ -1962,6 +2008,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           onClose={() => setIsErrorReportOpen(false)}
           wordId={selectedNode.wordId}
           word={selectedNode.label}
+          defaultIssueType={errorReportIssueType}
         />
       )}
     </div>
