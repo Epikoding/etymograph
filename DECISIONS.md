@@ -706,3 +706,171 @@ const [prefixesData] = await Promise.all([
 | 어근 `view` | 항상 통과 | 항상 통과 (클릭 시 words.txt 검증) |
 
 **삭제된 파일**: `frontend/data/morphemes/roots.json`
+
+---
+
+## 2026-01-23: Etymology 다중 버전 시스템
+
+**상황**: LLM이 생성한 어원 데이터의 품질이 일관적이지 않아 사용자가 더 나은 버전을 선택하거나 새로운 버전을 요청할 수 있는 기능 필요.
+
+**선택지**:
+
+1. 기존 구조 유지 (`words.etymology` 단일 JSONB 컬럼)
+2. `etymology`, `etymology_prev` 두 컬럼으로 apply/revert 기능
+3. 별도 `etymology_revisions` 테이블로 최대 N개 버전 관리
+
+**결정**: Option 3 - 별도 테이블로 최대 3개 버전 관리
+
+**이유**:
+
+1. **유연성**: 버전 수 제한을 쉽게 조절 가능
+2. **히스토리 추적**: 언제 어떤 버전이 생성되었는지 기록
+3. **사용자 선호도**: 로그인 사용자별로 선호 버전 저장 가능
+4. **롤백 용이**: 이전 버전으로 쉽게 복원
+
+**새 테이블 구조**:
+
+```sql
+-- 어원 버전 저장
+CREATE TABLE etymology_revisions (
+    id BIGSERIAL PRIMARY KEY,
+    word_id BIGINT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    revision_number INT NOT NULL,
+    etymology JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(word_id, revision_number)
+);
+
+-- 사용자별 선호 버전
+CREATE TABLE user_etymology_preferences (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id BIGINT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    revision_id BIGINT NOT NULL REFERENCES etymology_revisions(id) ON DELETE CASCADE,
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, word_id)
+);
+```
+
+**비즈니스 로직**:
+
+1. **검색 시 버전 결정**:
+   - 로그인 사용자: `user_etymology_preferences` 확인 → 없으면 최신 버전
+   - 비로그인: 최신 버전 반환
+
+2. **Refresh 시 3개 제한**:
+   - 3개 미만: 새 revision 추가
+   - 3개: 가장 오래된 revision 삭제 후 추가
+   - 삭제되는 revision을 선택한 사용자들의 preference도 삭제
+
+3. **버전 선택** (로그인 필요):
+   - `user_etymology_preferences` UPSERT
+
+**새 API 엔드포인트**:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/words/:word/revisions | 모든 버전 목록 |
+| GET | /api/words/:word/revisions/:revNum | 특정 버전 조회 |
+| POST | /api/words/:word/revisions/:revNum/select | 버전 선택 (로그인 필요) |
+
+**삭제된 엔드포인트**:
+
+- `POST /api/words/:word/apply` - 더 이상 필요 없음
+- `POST /api/words/:word/revert` - 더 이상 필요 없음
+
+**응답 구조 변경**:
+
+```json
+// 이전
+{
+  "id": 1,
+  "word": "teacher",
+  "etymology": {...},
+  "etymologyPrev": {...}
+}
+
+// 이후
+{
+  "id": 1,
+  "word": "teacher",
+  "etymology": {...},
+  "currentRevision": 2,
+  "totalRevisions": 3,
+  "revisions": [
+    {"revisionNumber": 1, "createdAt": "..."},
+    {"revisionNumber": 2, "createdAt": "..."},
+    {"revisionNumber": 3, "createdAt": "..."}
+  ]
+}
+```
+
+**수정된 파일**:
+
+| 위치 | 파일 | 변경 내용 |
+|------|------|-----------|
+| Backend | `internal/model/word.go` | Word에서 Etymology 제거, EtymologyRevision, UserEtymologyPreference 추가 |
+| Backend | `internal/database/database.go` | 마이그레이션 함수 추가 |
+| Backend | `internal/handler/word.go` | 버전 관리 로직으로 전면 개편 |
+| Backend | `internal/handler/fill.go` | revision 생성 방식으로 변경 |
+| Backend | `internal/handler/export.go` | revision에서 etymology 조회 |
+| Backend | `cmd/audit/main.go` | revision 테이블 조회로 변경 |
+| Backend | `cmd/server/main.go` | 라우트 변경 |
+| Frontend | `types/word.ts` | RevisionSummary, EtymologyRevision 타입 추가 |
+| Frontend | `lib/api.ts` | revision API 메서드 추가, apply/revert 제거 |
+| Frontend | `components/EtymologyGraph.tsx` | 버전 선택 UI 추가 |
+
+**마이그레이션**:
+
+기존 `words.etymology` 데이터는 `etymology_revisions`의 `revision_number=1`로 자동 이관됨.
+
+---
+
+## 2026-01-23: 하이브리드 접사/단어 검증 시스템
+
+**상황**: 그래프에서 노드(접미사, 접두사, 파생어) 클릭 시마다 `GET /api/words/:word/exists` API를 호출하여 네트워크 지연(~50-100ms) 발생.
+
+**선택지**:
+
+1. 현재 방식 유지 (매번 API 호출)
+2. 프론트엔드에 정적 JSON 파일로 접사 목록 번들링
+3. 하이브리드: 페이지 로드 시 접사 목록 1회 로드 후 프론트엔드 캐싱
+
+**결정**: Option 3 - 하이브리드 방식
+
+**이유**:
+
+1. **성능 개선**: 접사 클릭 시 0ms 지연 (캐시 히트)
+2. **데이터 관리**: 백엔드 단일 소스 유지 (words.txt/suffixes.txt/prefixes.txt)
+3. **번들 크기**: 정적 JSON 번들링 대비 초기 로드 분리 가능
+4. **Fallback**: 캐시 로드 전에도 API로 동작 보장
+
+**구현 내용**:
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `api-go/internal/validator/word.go` | `GetSuffixes()`, `GetPrefixes()` 메서드 추가 |
+| `api-go/internal/handler/word.go` | `GetMorphemes` 핸들러 추가 |
+| `api-go/cmd/server/main.go` | `/api/morphemes` 라우터 등록 |
+| `frontend/lib/api.ts` | `getMorphemes()` 메서드 추가 |
+| `frontend/lib/use-morpheme-cache.ts` | 싱글톤 캐싱 훅 (신규) |
+| `frontend/components/EtymologyGraph.tsx` | 캐시 기반 검증으로 변경 |
+
+**검증 로직**:
+
+| 유형 | 이전 | 이후 |
+|------|------|------|
+| 접미사 `-er` | API 호출 | 캐시 검증 (0ms) |
+| 접두사 `un-` | API 호출 | 캐시 검증 (0ms) |
+| 일반 단어 `teacher` | API 호출 | API 호출 (기존 유지) |
+
+**API 응답 예시**:
+
+```json
+GET /api/morphemes
+
+{
+  "suffixes": ["-er", "-ing", "-tion", ...],  // 671개
+  "prefixes": ["un-", "re-", "pre-", ...]     // 1,626개
+}
+```

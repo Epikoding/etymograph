@@ -31,6 +31,11 @@ func main() {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 
+	// Migrate etymology data to revisions (one-time migration)
+	if err := database.MigrateEtymologyToRevisions(db); err != nil {
+		log.Printf("Warning: Failed to migrate etymology to revisions: %v", err)
+	}
+
 	// Create partial index for unfilled words (etymology IS NULL)
 	// This index helps efficiently query words that need etymology to be filled
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_words_etymology_null
@@ -104,6 +109,9 @@ func main() {
 	// API routes
 	api := r.Group("/api")
 	{
+		// Morphemes (for frontend caching)
+		api.GET("/morphemes", wordHandler.GetMorphemes)
+
 		// Words (with optional auth for history tracking)
 		api.GET("/words/suggest", wordHandler.Suggest)
 		api.GET("/words/unfilled", wordHandler.GetUnfilled)
@@ -112,9 +120,10 @@ func main() {
 		api.GET("/words/:word/etymology", wordHandler.GetEtymology)
 		api.GET("/words/:word/derivatives", wordHandler.GetDerivatives)
 		api.GET("/words/:word/synonyms", wordHandler.GetSynonyms)
-		api.POST("/words/:word/refresh", wordHandler.RefreshEtymology)
-		api.POST("/words/:word/apply", wordHandler.ApplyEtymology)
-		api.POST("/words/:word/revert", wordHandler.RevertEtymology)
+		api.POST("/words/:word/refresh", middleware.OptionalAuthMiddleware(cfg.JWTSecret), wordHandler.RefreshEtymology)
+		api.GET("/words/:word/revisions", wordHandler.GetRevisions)
+		api.GET("/words/:word/revisions/:revNum", wordHandler.GetRevision)
+		api.POST("/words/:word/revisions/:revNum/select", middleware.AuthMiddleware(cfg.JWTSecret), wordHandler.SelectRevision)
 
 		// Etymology fill job management (admin only)
 		adminGroup := api.Group("", middleware.AdminMiddleware(cfg.JWTSecret, cfg.AdminEmails))

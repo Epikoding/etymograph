@@ -2,14 +2,12 @@
 
 import type { Etymology } from '@/types/word';
 import { BookOpen, GitBranch, ArrowRight, Layers, Copy } from 'lucide-react';
-import { useMorphemeValidator } from '@/lib/morpheme-validator';
 
 interface EtymologyCardProps {
   etymology: Etymology | null;
 }
 
 export default function EtymologyCard({ etymology }: EtymologyCardProps) {
-  const { filterValidComponents, hasValidComponents } = useMorphemeValidator();
   if (!etymology) {
     return (
       <div className="p-6 text-center text-gray-500">
@@ -40,14 +38,14 @@ export default function EtymologyCard({ etymology }: EtymologyCardProps) {
       </div>
 
       {/* Components */}
-      {hasValidComponents(etymology.origin.components) && (
+      {etymology.origin.components && etymology.origin.components.length > 0 && (
         <div>
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-3">
             <GitBranch className="w-5 h-5 text-primary-500" />
             Word Components
           </h3>
           <div className="grid gap-3">
-            {filterValidComponents(etymology.origin.components).map((component, index) => (
+            {etymology.origin.components.map((component, index) => (
               <div
                 key={index}
                 className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"

@@ -9,6 +9,7 @@
 3. 유사어 비교 및 뉘앙스 차이 설명 (pretext vs excuse)
 4. 꼬리에 꼬리를 무는 그래프 탐색
 5. 탐색 히스토리 export (JSON, CSV, Markdown)
+6. **어원 버전 관리**: 단어당 최대 3개의 LLM 생성 버전 저장, 선호 버전 선택 가능
 
 ## 용어 설명
 
@@ -166,27 +167,42 @@ etymograph/
 
 ## API Endpoints
 
+### 형태소 API
+
+| Method | Endpoint       | Description                             |
+| ------ | -------------- | --------------------------------------- |
+| GET    | /api/morphemes | 접두사/접미사 목록 (프론트엔드 캐싱용)  |
+
 ### 단어 API
 
-| Method | Endpoint                     | Description                   |
-| ------ | ---------------------------- | ----------------------------- |
-| POST   | /api/words/search            | 단어 검색 + 어원 분석         |
-| GET    | /api/words/:word/etymology   | 어원 상세                     |
-| GET    | /api/words/:word/derivatives | 파생어 목록                   |
-| GET    | /api/words/:word/synonyms    | 유사어 + 차이점               |
-| POST   | /api/sessions                | 세션 생성                     |
-| GET    | /api/sessions/:id            | 세션 조회                     |
-| POST   | /api/sessions/:id/words      | 세션에 단어 추가              |
-| GET    | /api/export/:sessionId       | Export (format=json\|csv\|md) |
+| Method | Endpoint                                  | Description                             |
+| ------ | ----------------------------------------- | --------------------------------------- |
+| POST   | /api/words/search                         | 단어 검색 + 어원 분석                   |
+| GET    | /api/words/:word/etymology                | 어원 상세                               |
+| GET    | /api/words/:word/derivatives              | 파생어 목록                             |
+| GET    | /api/words/:word/synonyms                 | 유사어 + 차이점                         |
+| POST   | /api/words/:word/refresh                  | 어원 새로고침 (새 버전 생성, 최대 3개)  |
+| GET    | /api/words/:word/revisions                | 해당 단어의 모든 버전 목록              |
+| GET    | /api/words/:word/revisions/:revNum        | 특정 버전 조회                          |
+| POST   | /api/words/:word/revisions/:revNum/select | 유저가 해당 버전 선택 (로그인 필요)     |
+
+### 세션 API
+
+| Method | Endpoint                 | Description                   |
+| ------ | ------------------------ | ----------------------------- |
+| POST   | /api/sessions            | 세션 생성                     |
+| GET    | /api/sessions/:id        | 세션 조회                     |
+| POST   | /api/sessions/:id/words  | 세션에 단어 추가              |
+| GET    | /api/export/:sessionId   | Export (format=json\|csv\|md) |
 
 ### 어원 일괄 생성 API
 
-| Method | Endpoint                       | Description                  |
-| ------ | ------------------------------ | ---------------------------- |
-| GET    | /api/words/unfilled            | etymology가 null인 단어 목록 |
-| POST   | /api/words/fill-etymology      | 어원 일괄 생성 Job 시작      |
-| GET    | /api/words/fill-status/:jobId  | Job 진행 상황 조회           |
-| POST   | /api/words/fill-etymology/stop | 진행 중인 Job 중단           |
+| Method | Endpoint                       | Description                      |
+| ------ | ------------------------------ | -------------------------------- |
+| GET    | /api/words/unfilled            | revision이 없는 단어 목록        |
+| POST   | /api/words/fill-etymology      | 어원 일괄 생성 Job 시작          |
+| GET    | /api/words/fill-status/:jobId  | Job 진행 상황 조회               |
+| POST   | /api/words/fill-etymology/stop | 진행 중인 Job 중단               |
 
 ### 인증 API (OAuth 2.0 + JWT)
 

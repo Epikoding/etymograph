@@ -1,4 +1,4 @@
-import type { Word, Session, SessionGraph, DerivativesData, SynonymsData } from '@/types/word';
+import type { Word, Session, SessionGraph, DerivativesData, SynonymsData, EtymologyRevision } from '@/types/word';
 import type { SearchHistoryResponse, HistoryDatesResponse, HistoryDateDetailResponse } from '@/types/auth';
 import type { ErrorReport, ErrorReportsResponse, SubmitErrorReportRequest, DashboardStats, SearchAnalyticsResponse, ReportStatus } from '@/types/error-report';
 
@@ -120,6 +120,19 @@ class ApiClient {
     }
   }
 
+  // Get morphemes (suffixes and prefixes) for frontend caching
+  async getMorphemes(): Promise<{ suffixes: string[]; prefixes: string[] }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/morphemes`);
+      if (!response.ok) {
+        return { suffixes: [], prefixes: [] };
+      }
+      return response.json();
+    } catch {
+      return { suffixes: [], prefixes: [] };
+    }
+  }
+
   async getDerivatives(word: string, language?: SupportedLanguage): Promise<{ word: string; language: string; derivatives: Array<{ word: string; meaning: string }> }> {
     const lang = language || this._language;
     return this.fetch<{ word: string; language: string; derivatives: Array<{ word: string; meaning: string }> }>(`/words/${encodeURIComponent(word)}/derivatives?language=${lang}`);
@@ -130,7 +143,7 @@ class ApiClient {
     return this.fetch<{ word: string; language: string; synonyms: SynonymsData }>(`/words/${encodeURIComponent(word)}/synonyms?language=${lang}`);
   }
 
-  // Etymology refresh/compare
+  // Etymology refresh - creates a new revision
   async refreshEtymology(word: string, language?: SupportedLanguage): Promise<Word> {
     const lang = language || this._language;
     return this.fetch<Word>(`/words/${encodeURIComponent(word)}/refresh?language=${lang}`, {
@@ -138,16 +151,22 @@ class ApiClient {
     });
   }
 
-  async applyEtymology(word: string, language?: SupportedLanguage): Promise<Word> {
+  // Get all revisions for a word
+  async getRevisions(word: string, language?: SupportedLanguage): Promise<{ word: string; language: string; revisions: EtymologyRevision[] }> {
     const lang = language || this._language;
-    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/apply?language=${lang}`, {
-      method: 'POST',
-    });
+    return this.fetch<{ word: string; language: string; revisions: EtymologyRevision[] }>(`/words/${encodeURIComponent(word)}/revisions?language=${lang}`);
   }
 
-  async revertEtymology(word: string, language?: SupportedLanguage): Promise<Word> {
+  // Get a specific revision
+  async getRevision(word: string, revisionNumber: number, language?: SupportedLanguage): Promise<EtymologyRevision> {
     const lang = language || this._language;
-    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/revert?language=${lang}`, {
+    return this.fetch<EtymologyRevision>(`/words/${encodeURIComponent(word)}/revisions/${revisionNumber}?language=${lang}`);
+  }
+
+  // Select a revision (requires auth)
+  async selectRevision(word: string, revisionNumber: number, language?: SupportedLanguage): Promise<Word> {
+    const lang = language || this._language;
+    return this.fetch<Word>(`/words/${encodeURIComponent(word)}/revisions/${revisionNumber}/select?language=${lang}`, {
       method: 'POST',
     });
   }

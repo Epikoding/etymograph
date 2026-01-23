@@ -19,6 +19,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const MaxRevisions = 3
+
 type WordHandler struct {
 	db            *gorm.DB
 	cache         *cache.RedisCache
@@ -56,6 +58,78 @@ func getLanguageKey(language string) string {
 	}
 }
 
+// getLatestRevision returns the latest revision for a word
+func (h *WordHandler) getLatestRevision(wordID int64) (*model.EtymologyRevision, error) {
+	var revision model.EtymologyRevision
+	result := h.db.Where("word_id = ?", wordID).Order("revision_number DESC").First(&revision)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &revision, nil
+}
+
+// getUserPreferredRevision returns user's preferred revision or latest if no preference
+// Optimized: uses JOIN to fetch in a single query
+func (h *WordHandler) getUserPreferredRevision(userID, wordID int64) (*model.EtymologyRevision, error) {
+	var revision model.EtymologyRevision
+	// Single query with JOIN: preference -> revision
+	result := h.db.Raw(`
+		SELECT er.* FROM etymology_revisions er
+		INNER JOIN user_etymology_preferences uep ON er.id = uep.revision_id
+		WHERE uep.user_id = ? AND uep.word_id = ?
+		LIMIT 1
+	`, userID, wordID).Scan(&revision)
+
+	if result.Error == nil && revision.ID > 0 {
+		return &revision, nil
+	}
+	// Fallback to latest revision
+	return h.getLatestRevision(wordID)
+}
+
+// getRevisionSummaries returns a list of revision summaries for a word
+func (h *WordHandler) getRevisionSummaries(wordID int64) []model.RevisionSummary {
+	var revisions []model.EtymologyRevision
+	h.db.Where("word_id = ?", wordID).Order("revision_number ASC").Find(&revisions)
+
+	summaries := make([]model.RevisionSummary, len(revisions))
+	for i, rev := range revisions {
+		summaries[i] = model.RevisionSummary{
+			RevisionNumber: rev.RevisionNumber,
+			CreatedAt:      rev.CreatedAt,
+		}
+	}
+	return summaries
+}
+
+// buildWordResponse builds a WordWithEtymology response
+// Optimized: removed redundant COUNT query, uses len(revisions) instead
+func (h *WordHandler) buildWordResponse(word *model.Word, revision *model.EtymologyRevision, includeRevisions bool) model.WordWithEtymology {
+	response := model.WordWithEtymology{
+		ID:        word.ID,
+		Word:      word.Word,
+		Language:  word.Language,
+		CreatedAt: word.CreatedAt,
+		UpdatedAt: word.UpdatedAt,
+	}
+
+	if revision != nil {
+		response.Etymology = revision.Etymology
+		response.CurrentRevision = revision.RevisionNumber
+
+		// Always fetch revisions to get accurate count (removes redundant COUNT query)
+		response.Revisions = h.getRevisionSummaries(word.ID)
+		response.TotalRevisions = len(response.Revisions)
+
+		// Clear revisions from response if not requested
+		if !includeRevisions {
+			response.Revisions = nil
+		}
+	}
+
+	return response
+}
+
 func (h *WordHandler) Search(c *gin.Context) {
 	var req SearchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -89,29 +163,43 @@ func (h *WordHandler) Search(c *gin.Context) {
 	// 1. Check Redis cache first
 	if h.cache != nil {
 		if cached, err := h.cache.Get(c.Request.Context(), cacheKey); err == nil {
-			var word model.Word
-			if err := json.Unmarshal(cached, &word); err == nil {
+			var response model.WordWithEtymology
+			if err := json.Unmarshal(cached, &response); err == nil {
 				log.Printf("Redis cache hit: %s", cacheKey)
-				c.JSON(http.StatusOK, word)
+				c.JSON(http.StatusOK, response)
 				return
 			}
 		}
 	}
 
-	// 2. Check PostgreSQL
+	// 2. Check PostgreSQL for existing word
 	var word model.Word
 	result := h.db.Where("word = ? AND language = ?", normalizedWord, langKey).First(&word)
 
-	if result.Error == nil && len(word.Etymology) > 0 {
-		log.Printf("DB cache hit: %s (language: %s)", normalizedWord, langKey)
-		// Store in Redis for next time
-		if h.cache != nil {
-			if wordJSON, err := json.Marshal(word); err == nil {
-				h.cache.Set(c.Request.Context(), cacheKey, wordJSON)
-			}
+	if result.Error == nil {
+		// Word exists, get appropriate revision
+		var revision *model.EtymologyRevision
+		var err error
+
+		if userID, exists := c.Get("userID"); exists {
+			revision, err = h.getUserPreferredRevision(userID.(int64), word.ID)
+		} else {
+			revision, err = h.getLatestRevision(word.ID)
 		}
-		c.JSON(http.StatusOK, word)
-		return
+
+		if err == nil && revision != nil {
+			log.Printf("DB cache hit: %s (language: %s)", normalizedWord, langKey)
+			response := h.buildWordResponse(&word, revision, true)
+
+			// Store in Redis for next time
+			if h.cache != nil {
+				if responseJSON, err := json.Marshal(response); err == nil {
+					h.cache.Set(c.Request.Context(), cacheKey, responseJSON)
+				}
+			}
+			c.JSON(http.StatusOK, response)
+			return
+		}
 	}
 
 	// Validate word before calling LLM (only for new words)
@@ -145,27 +233,17 @@ func (h *WordHandler) Search(c *gin.Context) {
 			})
 			return
 		}
-		if result.Error == nil {
-			c.JSON(http.StatusOK, word)
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch etymology"})
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch etymology"})
 		return
 	}
 
-	// Filter derivatives disabled - grammatical variations like "interesting" are valid derivatives
-	// filterDerivativesInPlace(normalizedWord, etymology)
-
 	etymologyJSON, _ := json.Marshal(etymology)
 
-	if result.Error == nil {
-		h.db.Model(&word).Update("etymology", datatypes.JSON(etymologyJSON))
-		word.Etymology = datatypes.JSON(etymologyJSON)
-	} else {
+	// Create or get word record
+	if result.Error != nil {
 		word = model.Word{
-			Word:      normalizedWord,
-			Language:  langKey,
-			Etymology: datatypes.JSON(etymologyJSON),
+			Word:     normalizedWord,
+			Language: langKey,
 		}
 		if err := h.db.Create(&word).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save word"})
@@ -173,14 +251,28 @@ func (h *WordHandler) Search(c *gin.Context) {
 		}
 	}
 
+	// Create first revision
+	revision := model.EtymologyRevision{
+		WordID:         word.ID,
+		RevisionNumber: 1,
+		Etymology:      datatypes.JSON(etymologyJSON),
+		CreatedAt:      time.Now(),
+	}
+	if err := h.db.Create(&revision).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save etymology revision"})
+		return
+	}
+
+	response := h.buildWordResponse(&word, &revision, true)
+
 	// Store in Redis cache
 	if h.cache != nil {
-		if wordJSON, err := json.Marshal(word); err == nil {
-			h.cache.Set(c.Request.Context(), cacheKey, wordJSON)
+		if responseJSON, err := json.Marshal(response); err == nil {
+			h.cache.Set(c.Request.Context(), cacheKey, responseJSON)
 		}
 	}
 
-	c.JSON(http.StatusOK, word)
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *WordHandler) GetEtymology(c *gin.Context) {
@@ -195,36 +287,42 @@ func (h *WordHandler) GetEtymology(c *gin.Context) {
 	var word model.Word
 	result := h.db.Where("word = ? AND language = ?", normalizedWord, langKey).First(&word)
 
-	if result.Error == nil && len(word.Etymology) > 0 {
-		log.Printf("Cache hit: %s (language: %s)", normalizedWord, langKey)
-		c.JSON(http.StatusOK, word)
+	if result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Word not found"})
 		return
 	}
 
-	etymology, err := h.llmClient.GetEtymologyWithLang(normalizedWord, language)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch etymology"})
-		return
-	}
+	// Get appropriate revision
+	var revision *model.EtymologyRevision
+	var err error
 
-	// Filter derivatives disabled - grammatical variations like "interesting" are valid derivatives
-	// filterDerivativesInPlace(normalizedWord, etymology)
-
-	etymologyJSON, _ := json.Marshal(etymology)
-
-	if result.Error == nil {
-		h.db.Model(&word).Update("etymology", datatypes.JSON(etymologyJSON))
-		word.Etymology = datatypes.JSON(etymologyJSON)
+	if userID, exists := c.Get("userID"); exists {
+		revision, err = h.getUserPreferredRevision(userID.(int64), word.ID)
 	} else {
-		word = model.Word{
-			Word:      normalizedWord,
-			Language:  langKey,
-			Etymology: datatypes.JSON(etymologyJSON),
-		}
-		h.db.Create(&word)
+		revision, err = h.getLatestRevision(word.ID)
 	}
 
-	c.JSON(http.StatusOK, word)
+	if err != nil || revision == nil {
+		// No revision exists, fetch from LLM
+		etymology, err := h.llmClient.GetEtymologyWithLang(normalizedWord, language)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch etymology"})
+			return
+		}
+
+		etymologyJSON, _ := json.Marshal(etymology)
+		newRevision := model.EtymologyRevision{
+			WordID:         word.ID,
+			RevisionNumber: 1,
+			Etymology:      datatypes.JSON(etymologyJSON),
+			CreatedAt:      time.Now(),
+		}
+		h.db.Create(&newRevision)
+		revision = &newRevision
+	}
+
+	response := h.buildWordResponse(&word, revision, true)
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *WordHandler) GetDerivatives(c *gin.Context) {
@@ -244,9 +342,20 @@ func (h *WordHandler) GetDerivatives(c *gin.Context) {
 		return
 	}
 
+	// Get latest revision for derivatives
+	revision, err := h.getLatestRevision(word.ID)
+	if err != nil || revision == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"word":        normalizedWord,
+			"language":    langKey,
+			"derivatives": []interface{}{},
+		})
+		return
+	}
+
 	// Extract derivatives from etymology JSON
 	var etymology map[string]interface{}
-	if err := json.Unmarshal(word.Etymology, &etymology); err != nil {
+	if err := json.Unmarshal(revision.Etymology, &etymology); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"word":        normalizedWord,
 			"language":    langKey,
@@ -328,6 +437,18 @@ func (h *WordHandler) RefreshEtymology(c *gin.Context) {
 		return
 	}
 
+	// Check revision count BEFORE calling LLM to avoid wasting tokens
+	var revisionCount int64
+	h.db.Model(&model.EtymologyRevision{}).Where("word_id = ?", word.ID).Count(&revisionCount)
+
+	if revisionCount >= int64(MaxRevisions) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Maximum revisions reached",
+			"code":  "MAX_REVISIONS_REACHED",
+		})
+		return
+	}
+
 	log.Printf("Refreshing etymology for: %s (language: %s)", normalizedWord, language)
 	newEtymology, err := h.llmClient.GetEtymologyWithLang(normalizedWord, language)
 	if err != nil {
@@ -344,23 +465,38 @@ func (h *WordHandler) RefreshEtymology(c *gin.Context) {
 		return
 	}
 
-	// Filter derivatives disabled - grammatical variations like "interesting" are valid derivatives
-	// filterDerivativesInPlace(normalizedWord, newEtymology)
-
 	newEtymologyJSON, _ := json.Marshal(newEtymology)
 
-	// Save old etymology BEFORE any updates (deep copy)
-	oldEtymology := make(datatypes.JSON, len(word.Etymology))
-	copy(oldEtymology, word.Etymology)
+	// Get the highest revision number
+	var maxRevision int
+	h.db.Model(&model.EtymologyRevision{}).Where("word_id = ?", word.ID).
+		Select("COALESCE(MAX(revision_number), 0)").Scan(&maxRevision)
 
-	h.db.Model(&word).Updates(map[string]interface{}{
-		"etymology_prev": oldEtymology,
-		"etymology":      datatypes.JSON(newEtymologyJSON),
-		"updated_at":     time.Now(),
-	})
+	newRevisionNumber := maxRevision + 1
 
-	word.EtymologyPrev = oldEtymology
-	word.Etymology = datatypes.JSON(newEtymologyJSON)
+	// Create new revision
+	newRevision := model.EtymologyRevision{
+		WordID:         word.ID,
+		RevisionNumber: newRevisionNumber,
+		Etymology:      datatypes.JSON(newEtymologyJSON),
+		CreatedAt:      time.Now(),
+	}
+	if err := h.db.Create(&newRevision).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create revision"})
+		return
+	}
+
+	// If user is logged in, set their preference to the new revision
+	if userID, exists := c.Get("userID"); exists {
+		h.db.Where("user_id = ? AND word_id = ?", userID.(int64), word.ID).Delete(&model.UserEtymologyPreference{})
+		pref := model.UserEtymologyPreference{
+			UserID:     userID.(int64),
+			WordID:     word.ID,
+			RevisionID: newRevision.ID,
+			UpdatedAt:  time.Now(),
+		}
+		h.db.Create(&pref)
+	}
 
 	// Invalidate Redis cache
 	cacheKey := cache.CacheKey(normalizedWord, langKey)
@@ -369,10 +505,12 @@ func (h *WordHandler) RefreshEtymology(c *gin.Context) {
 		log.Printf("Redis cache invalidated: %s", cacheKey)
 	}
 
-	c.JSON(http.StatusOK, word)
+	response := h.buildWordResponse(&word, &newRevision, true)
+	c.JSON(http.StatusOK, response)
 }
 
-func (h *WordHandler) ApplyEtymology(c *gin.Context) {
+// GetRevisions returns all revisions for a word
+func (h *WordHandler) GetRevisions(c *gin.Context) {
 	wordParam := c.Param("word")
 	normalizedWord := strings.ToLower(strings.TrimSpace(wordParam))
 	language := c.Query("language")
@@ -382,53 +520,110 @@ func (h *WordHandler) ApplyEtymology(c *gin.Context) {
 	langKey := getLanguageKey(language)
 
 	var word model.Word
-	result := h.db.Where("word = ? AND language = ?", normalizedWord, langKey).First(&word)
-	if result.Error != nil {
+	if err := h.db.Where("word = ? AND language = ?", normalizedWord, langKey).First(&word).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Word not found"})
 		return
 	}
 
-	h.db.Model(&word).Updates(map[string]interface{}{
-		"etymology_prev": nil,
-		"updated_at":     time.Now(),
+	var revisions []model.EtymologyRevision
+	h.db.Where("word_id = ?", word.ID).Order("revision_number ASC").Find(&revisions)
+
+	c.JSON(http.StatusOK, gin.H{
+		"word":      normalizedWord,
+		"language":  langKey,
+		"revisions": revisions,
 	})
-
-	word.EtymologyPrev = nil
-
-	c.JSON(http.StatusOK, word)
 }
 
-func (h *WordHandler) RevertEtymology(c *gin.Context) {
+// GetRevision returns a specific revision for a word
+func (h *WordHandler) GetRevision(c *gin.Context) {
 	wordParam := c.Param("word")
 	normalizedWord := strings.ToLower(strings.TrimSpace(wordParam))
+	revNumStr := c.Param("revNum")
 	language := c.Query("language")
 	if language == "" {
 		language = "Korean"
 	}
 	langKey := getLanguageKey(language)
 
+	revNum, err := strconv.Atoi(revNumStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid revision number"})
+		return
+	}
+
 	var word model.Word
-	result := h.db.Where("word = ? AND language = ?", normalizedWord, langKey).First(&word)
-	if result.Error != nil {
+	if err := h.db.Where("word = ? AND language = ?", normalizedWord, langKey).First(&word).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Word not found"})
 		return
 	}
 
-	if len(word.EtymologyPrev) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No previous etymology to revert"})
+	var revision model.EtymologyRevision
+	if err := h.db.Where("word_id = ? AND revision_number = ?", word.ID, revNum).First(&revision).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Revision not found"})
 		return
 	}
 
-	h.db.Model(&word).Updates(map[string]interface{}{
-		"etymology":      word.EtymologyPrev,
-		"etymology_prev": nil,
-		"updated_at":     time.Now(),
-	})
+	c.JSON(http.StatusOK, revision)
+}
 
-	word.Etymology = word.EtymologyPrev
-	word.EtymologyPrev = nil
+// SelectRevision sets user's preferred revision for a word (requires auth)
+func (h *WordHandler) SelectRevision(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
 
-	c.JSON(http.StatusOK, word)
+	wordParam := c.Param("word")
+	normalizedWord := strings.ToLower(strings.TrimSpace(wordParam))
+	revNumStr := c.Param("revNum")
+	language := c.Query("language")
+	if language == "" {
+		language = "Korean"
+	}
+	langKey := getLanguageKey(language)
+
+	revNum, err := strconv.Atoi(revNumStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid revision number"})
+		return
+	}
+
+	var word model.Word
+	if err := h.db.Where("word = ? AND language = ?", normalizedWord, langKey).First(&word).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Word not found"})
+		return
+	}
+
+	var revision model.EtymologyRevision
+	if err := h.db.Where("word_id = ? AND revision_number = ?", word.ID, revNum).First(&revision).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Revision not found"})
+		return
+	}
+
+	// Upsert user preference
+	var pref model.UserEtymologyPreference
+	result := h.db.Where("user_id = ? AND word_id = ?", userID.(int64), word.ID).First(&pref)
+	if result.Error != nil {
+		// Create new preference
+		pref = model.UserEtymologyPreference{
+			UserID:     userID.(int64),
+			WordID:     word.ID,
+			RevisionID: revision.ID,
+			UpdatedAt:  time.Now(),
+		}
+		h.db.Create(&pref)
+	} else {
+		// Update existing preference
+		h.db.Model(&pref).Updates(map[string]interface{}{
+			"revision_id": revision.ID,
+			"updated_at":  time.Now(),
+		})
+	}
+
+	response := h.buildWordResponse(&word, &revision, true)
+	c.JSON(http.StatusOK, response)
 }
 
 // Suggest returns word suggestions for autocomplete based on prefix
@@ -531,7 +726,7 @@ type UnfilledWord struct {
 	Language string `json:"language"`
 }
 
-// GetUnfilled returns words with null etymology (paginated)
+// GetUnfilled returns words with no etymology revisions (paginated)
 func (h *WordHandler) GetUnfilled(c *gin.Context) {
 	language := c.Query("language")
 	if language == "" {
@@ -556,16 +751,16 @@ func (h *WordHandler) GetUnfilled(c *gin.Context) {
 		}
 	}
 
-	// Get total count
+	// Get total count of words without revisions
 	var total int64
 	h.db.Model(&model.Word{}).
-		Where("language = ? AND (etymology IS NULL OR etymology = 'null'::jsonb OR etymology = '{}'::jsonb)", language).
+		Where("language = ? AND id NOT IN (SELECT DISTINCT word_id FROM etymology_revisions)", language).
 		Count(&total)
 
 	// Get unfilled words
 	var words []model.Word
 	result := h.db.Select("id, word, language").
-		Where("language = ? AND (etymology IS NULL OR etymology = 'null'::jsonb OR etymology = '{}'::jsonb)", language).
+		Where("language = ? AND id NOT IN (SELECT DISTINCT word_id FROM etymology_revisions)", language).
 		Order("id ASC").
 		Limit(limit).
 		Offset(offset).
@@ -594,7 +789,10 @@ func (h *WordHandler) GetUnfilled(c *gin.Context) {
 	})
 }
 
-// Exists checks if a word exists in the local dictionary (words.txt)
+// Exists checks if a word, suffix, or prefix exists in the dictionary
+// Suffixes: "-er", "-ing" (start with -)
+// Prefixes: "un-", "re-" (end with -)
+// Words: "teacher", "happy" (no hyphen)
 func (h *WordHandler) Exists(c *gin.Context) {
 	wordParam := c.Param("word")
 	normalizedWord := strings.ToLower(strings.TrimSpace(wordParam))
@@ -604,6 +802,22 @@ func (h *WordHandler) Exists(c *gin.Context) {
 		return
 	}
 
-	exists := h.wordValidator.IsInLocalDict(normalizedWord)
+	exists := h.wordValidator.ExistsInDict(normalizedWord)
 	c.JSON(http.StatusOK, gin.H{"exists": exists})
+}
+
+// GetMorphemes returns all suffixes and prefixes for frontend caching
+func (h *WordHandler) GetMorphemes(c *gin.Context) {
+	if h.wordValidator == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "word validator not initialized"})
+		return
+	}
+
+	suffixes := h.wordValidator.GetSuffixes()
+	prefixes := h.wordValidator.GetPrefixes()
+
+	c.JSON(http.StatusOK, gin.H{
+		"suffixes": suffixes,
+		"prefixes": prefixes,
+	})
 }

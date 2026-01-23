@@ -92,12 +92,27 @@ export interface SynonymsData {
   synonyms: Synonym[];
 }
 
+export interface RevisionSummary {
+  revisionNumber: number;
+  createdAt: string;
+}
+
+export interface EtymologyRevision {
+  id: number;
+  wordId: number;
+  revisionNumber: number;
+  etymology: Etymology;
+  createdAt: string;
+}
+
 export interface Word {
   id: number;
   word: string;
   language: string;
   etymology: Etymology | null;
-  etymologyPrev?: Etymology | null;
+  currentRevision?: number;
+  totalRevisions?: number;
+  revisions?: RevisionSummary[];
   createdAt: string;
   updatedAt: string;
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/etymograph/api/internal/model"
 	"github.com/gin-gonic/gin"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -18,6 +19,16 @@ type ExportHandler struct {
 
 func NewExportHandler(db *gorm.DB) *ExportHandler {
 	return &ExportHandler{db: db}
+}
+
+// getLatestEtymology fetches the latest revision's etymology for a word
+func (h *ExportHandler) getLatestEtymology(wordID int64) datatypes.JSON {
+	var revision model.EtymologyRevision
+	err := h.db.Where("word_id = ?", wordID).Order("revision_number DESC").First(&revision).Error
+	if err != nil {
+		return nil
+	}
+	return revision.Etymology
 }
 
 func (h *ExportHandler) Export(c *gin.Context) {
@@ -58,7 +69,8 @@ func (h *ExportHandler) exportCSV(c *gin.Context, session *model.Session) {
 
 	for _, sw := range session.Words {
 		var etymology map[string]interface{}
-		json.Unmarshal(sw.Word.Etymology, &etymology)
+		etymologyJSON := h.getLatestEtymology(sw.Word.ID)
+		json.Unmarshal(etymologyJSON, &etymology)
 
 		originLang := ""
 		originRoot := ""
@@ -108,7 +120,8 @@ func (h *ExportHandler) exportMarkdown(c *gin.Context, session *model.Session) {
 
 	for _, sw := range session.Words {
 		var etymology map[string]interface{}
-		json.Unmarshal(sw.Word.Etymology, &etymology)
+		etymologyJSON := h.getLatestEtymology(sw.Word.ID)
+		json.Unmarshal(etymologyJSON, &etymology)
 
 		buf.WriteString(fmt.Sprintf("### %d. %s\n\n", sw.Order, sw.Word.Word))
 

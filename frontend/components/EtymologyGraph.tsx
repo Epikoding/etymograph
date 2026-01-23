@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { forceCollide, forceX, forceY } from 'd3-force';
-import { X, RefreshCw, Flag } from 'lucide-react';
+import { X, RefreshCw, Flag, ChevronDown, Check, Save } from 'lucide-react';
 import ErrorReportDialog from './ErrorReportDialog';
 import { api, ApiError, type SupportedLanguage } from '@/lib/api';
-import type { Etymology } from '@/types/word';
-import { useMorphemeValidator } from '@/lib/morpheme-validator';
+import { useMorphemeCache } from '@/lib/use-morpheme-cache';
+import type { Etymology, RevisionSummary } from '@/types/word';
+import { useAuth } from '@/lib/auth-context';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   ssr: false,
@@ -36,8 +37,8 @@ interface GraphNode {
 }
 
 interface GraphLink {
-  source: string;
-  target: string;
+  source: string | { id: string };
+  target: string | { id: string };
 }
 
 interface EtymologyGraphProps {
@@ -129,7 +130,8 @@ function getKoreanMeaning(meaning: string): string {
 }
 
 export default function EtymologyGraph({ initialWord, language = 'Korean', onWordSelect, onInitialLoad }: EtymologyGraphProps) {
-  const { filterValidComponents, hasValidComponents } = useMorphemeValidator();
+  const { user } = useAuth();
+  const { existsInCache } = useMorphemeCache();
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [links, setLinks] = useState<GraphLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -148,10 +150,15 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [, setAnimationTick] = useState(0); // 애니메이션용 리렌더 트리거
-  const [isComparing, setIsComparing] = useState(false);
-  const [prevEtymology, setPrevEtymology] = useState<Etymology | null>(null);
   const [refreshLoading, setRefreshLoading] = useState(false);
   const [isErrorReportOpen, setIsErrorReportOpen] = useState(false);
+  // Revision system state
+  const [currentRevision, setCurrentRevision] = useState<number>(0);
+  const [savedRevision, setSavedRevision] = useState<number>(0); // User's saved preference
+  const [totalRevisions, setTotalRevisions] = useState<number>(0);
+  const [revisions, setRevisions] = useState<RevisionSummary[]>([]);
+  const [showRevisionDropdown, setShowRevisionDropdown] = useState(false);
+  const [savingRevision, setSavingRevision] = useState(false);
   const loadedWordsRef = useRef<Set<string>>(new Set());
   const nodesRef = useRef<GraphNode[]>([]); // Track nodes in ref for reliable duplicate detection
   const linksRef = useRef<GraphLink[]>([]); // Track links in ref for reliable drag detection
@@ -406,7 +413,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
     return null;
   };
 
-  const loadWord = async (word: string, parentNodeId?: string, clickedNodeId?: string) => {
+  const loadWord = async (word: string, parentNodeId?: string, clickedNodeId?: string, etymologyOverride?: Etymology) => {
     // Include language in the cache key to handle language changes
     const cacheKey = `${word}-${language}`;
     if (loadedWordsRef.current.has(cacheKey)) return;
@@ -419,8 +426,20 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
     setLoading(true);
     try {
-      const wordData = await api.searchWord(word, language);
-      const etymology = extractEtymology(wordData.etymology, language);
+      // Use provided etymology if available, otherwise fetch from API
+      let wordData;
+      let etymology: Etymology | null;
+
+      if (etymologyOverride) {
+        // Use the provided etymology (e.g., from revision selection)
+        etymology = etymologyOverride;
+        // Get word data without fetching new etymology - mark as override to skip revision state updates
+        const existingNode = nodesRef.current.find(n => n.label.toLowerCase() === word.toLowerCase() && n.type === 'word');
+        wordData = { id: existingNode?.wordId, etymology: null, currentRevision: 0, totalRevisions: 0, revisions: [], isOverride: true };
+      } else {
+        wordData = await api.searchWord(word, language);
+        etymology = extractEtymology(wordData.etymology, language);
+      }
 
       // Use nodesRef for reliable duplicate checking
       const currentNodes = nodesRef.current;
@@ -530,8 +549,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       if (!isFirstLevel) {
         if (etymology?.origin?.root) totalChildCount++;
         if (etymology?.origin?.components) {
-          const comps = filterValidComponents(etymology.origin.components);
-          totalChildCount += comps.length;
+          totalChildCount += etymology.origin.components.length;
         }
         if (etymology?.derivatives) totalChildCount += etymology.derivatives.length;
         if (etymology?.synonyms) totalChildCount += etymology.synonyms.length;
@@ -630,9 +648,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
           // Components branch from root
           if (etymology.origin.components) {
-            const validComponents = filterValidComponents(etymology.origin.components);
-            const compCount = validComponents.length;
-            validComponents.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
+            const components = etymology.origin.components;
+            const compCount = components.length;
+            components.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
               const koreanMeaning = comp.meaningLocalized || comp.meaningKo || getKoreanMeaning(comp.meaning);
               const existingComp = findExistingNode(comp.part, 'component', [...currentNodes, ...newNodes]);
 
@@ -694,9 +712,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           }
         } else if (etymology.origin.components) {
           // No root, components connect directly to word
-          const validComponents = filterValidComponents(etymology.origin.components);
-          const compCount = validComponents.length;
-          validComponents.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
+          const components = etymology.origin.components;
+          const compCount = components.length;
+          components.forEach((comp: { part: string; meaning: string; meaningKo?: string; meaningLocalized?: string }, idx: number) => {
             const koreanMeaning = comp.meaningLocalized || comp.meaningKo || getKoreanMeaning(comp.meaning);
             const existingComp = findExistingNode(comp.part, 'component', [...currentNodes, ...newNodes]);
 
@@ -974,6 +992,14 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           nodesRef.current.find(n => n.id === wordNodeId);
         if (wordNode) {
           setSelectedNode({ ...wordNode, etymology } as GraphNode);
+          // Only update revision state from API response (not when using etymology override)
+          if (!(wordData as { isOverride?: boolean }).isOverride) {
+            const initialRevision = wordData.currentRevision || 1;
+            setCurrentRevision(initialRevision);
+            setSavedRevision(initialRevision); // Server returns user's saved preference
+            setTotalRevisions(wordData.totalRevisions || 1);
+            setRevisions(wordData.revisions || []);
+          }
         }
       }
     } catch (error) {
@@ -1114,7 +1140,6 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
     try {
       const wordData = await api.refreshEtymology(selectedNode.label, language);
       const newEtymology = extractEtymology(wordData.etymology, language);
-      const oldEtymology = extractEtymology(wordData.etymologyPrev, language);
 
       if (newEtymology) {
         // Update the selected node's etymology
@@ -1124,9 +1149,12 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
           n.id === selectedNode.id ? { ...n, etymology: newEtymology } : n
         ));
 
-        // Enter comparison mode
-        setPrevEtymology(oldEtymology);
-        setIsComparing(true);
+        // Update revision info
+        const newRevision = wordData.currentRevision || 1;
+        setCurrentRevision(newRevision);
+        setSavedRevision(newRevision); // New revision is auto-saved for logged-in users
+        setTotalRevisions(wordData.totalRevisions || 1);
+        setRevisions(wordData.revisions || []);
       }
     } catch (error) {
       console.error('Failed to refresh etymology:', error);
@@ -1140,41 +1168,99 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
     }
   };
 
-  const handleApplyEtymology = async () => {
+  // Handle revision selection (local only, does not save to server)
+  // Rebuilds the graph with new etymology data
+  const handleSelectRevision = async (revisionNumber: number) => {
     if (!selectedNode) return;
 
     try {
-      await api.applyEtymology(selectedNode.label, language);
-      // Exit comparison mode
-      setPrevEtymology(null);
-      setIsComparing(false);
+      // Fetch and display the revision without saving preference
+      const revision = await api.getRevision(selectedNode.label, revisionNumber, language);
+      const newEtymology = extractEtymology(revision.etymology, language);
+      if (newEtymology) {
+        const wordLabel = selectedNode.label.toLowerCase();
+        const wordNodeId = selectedNode.id;
+
+        // Build adjacency map for efficient traversal
+        const adjacencyMap = new Map<string, string[]>();
+        links.forEach(link => {
+          const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+          const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+          if (!adjacencyMap.has(sourceId)) {
+            adjacencyMap.set(sourceId, []);
+          }
+          adjacencyMap.get(sourceId)!.push(targetId);
+        });
+
+        // Recursively find all descendant nodes (excluding word nodes)
+        const childNodeIds = new Set<string>();
+        const findDescendants = (nodeId: string) => {
+          const children = adjacencyMap.get(nodeId) || [];
+          for (const childId of children) {
+            const childNode = nodes.find(n => n.id === childId);
+            // Only traverse non-word nodes to avoid following word-to-word links
+            if (childNode && childNode.type !== 'word' && !childNodeIds.has(childId)) {
+              childNodeIds.add(childId);
+              findDescendants(childId); // Recursively find children of children
+            }
+          }
+        };
+        findDescendants(wordNodeId);
+
+        // Remove child nodes and their links
+        const filteredNodes = nodes.filter(n => !childNodeIds.has(n.id));
+        const filteredLinks = links.filter(link => {
+          const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+          const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+          return !childNodeIds.has(sourceId) && !childNodeIds.has(targetId);
+        });
+
+        // Update refs
+        nodesRef.current = filteredNodes;
+        linksRef.current = filteredLinks;
+
+        // Remove word from loaded set to allow reloading (include language in cache key)
+        loadedWordsRef.current.delete(`${wordLabel}-${language}`);
+
+        // Update state
+        setNodes(filteredNodes);
+        setLinks(filteredLinks);
+
+        // Update selected node with new etymology
+        const updatedSelectedNode = { ...selectedNode, etymology: newEtymology };
+        setSelectedNode(updatedSelectedNode);
+
+        // Reload the word with new etymology (this will rebuild child nodes)
+        // We need to update the node's etymology first
+        setNodes(prev => prev.map(n =>
+          n.id === wordNodeId ? { ...n, etymology: newEtymology } : n
+        ));
+
+        setCurrentRevision(revisionNumber);
+
+        // Reload the word to rebuild graph with new etymology
+        await loadWord(wordLabel, wordNodeId, wordNodeId, newEtymology);
+      }
     } catch (error) {
-      console.error('Failed to apply etymology:', error);
-      setErrorMessage('어원 정보 적용에 실패했습니다.');
+      console.error('Failed to select revision:', error);
+      setErrorMessage('버전 선택에 실패했습니다.');
     }
+    // Keep dropdown open so user can select other revisions
   };
 
-  const handleRevertEtymology = async () => {
-    if (!selectedNode || !prevEtymology) return;
+  // Handle saving revision preference (authenticated users only)
+  const handleSaveRevision = async () => {
+    if (!selectedNode || !user) return;
 
+    setSavingRevision(true);
     try {
-      const wordData = await api.revertEtymology(selectedNode.label, language);
-      const revertedEtymology = extractEtymology(wordData.etymology, language);
-
-      if (revertedEtymology) {
-        // Update the selected node's etymology back to previous
-        setSelectedNode(prev => prev ? { ...prev, etymology: revertedEtymology } : null);
-        setNodes(prev => prev.map(n =>
-          n.id === selectedNode.id ? { ...n, etymology: revertedEtymology } : n
-        ));
-      }
-
-      // Exit comparison mode
-      setPrevEtymology(null);
-      setIsComparing(false);
+      await api.selectRevision(selectedNode.label, currentRevision, language);
+      setSavedRevision(currentRevision);
     } catch (error) {
-      console.error('Failed to revert etymology:', error);
-      setErrorMessage('어원 정보 복원에 실패했습니다.');
+      console.error('Failed to save revision preference:', error);
+      setErrorMessage('버전 저장에 실패했습니다.');
+    } finally {
+      setSavingRevision(false);
     }
   };
 
@@ -1197,15 +1283,51 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
       // 접미사: -로 시작 (예: -y, -er, -ing, -tion)
       if (label.startsWith('-') && cleanLabel.length >= 1) {
-        loadWord(label, node.id, node.id);
-        onWordSelect?.(label);
+        // Use cache for suffix validation (instant)
+        const cachedResult = existsInCache(label);
+        if (cachedResult !== null) {
+          if (cachedResult) {
+            loadWord(label, node.id, node.id);
+            onWordSelect?.(label);
+          } else {
+            setErrorMessage(`"${label}"은(는) 사전에 없는 접미사입니다`);
+          }
+          return;
+        }
+        // Fallback to API if cache not loaded
+        api.wordExists(label).then((exists) => {
+          if (exists) {
+            loadWord(label, node.id, node.id);
+            onWordSelect?.(label);
+          } else {
+            setErrorMessage(`"${label}"은(는) 사전에 없는 접미사입니다`);
+          }
+        });
         return;
       }
 
       // 접두사: -로 끝남 (예: un-, re-, pre-, inter-, super-, trans-)
       if (label.endsWith('-')) {
-        loadWord(label, node.id, node.id);
-        onWordSelect?.(label);
+        // Use cache for prefix validation (instant)
+        const cachedResult = existsInCache(label);
+        if (cachedResult !== null) {
+          if (cachedResult) {
+            loadWord(label, node.id, node.id);
+            onWordSelect?.(label);
+          } else {
+            setErrorMessage(`"${label}"은(는) 사전에 없는 접두사입니다`);
+          }
+          return;
+        }
+        // Fallback to API if cache not loaded
+        api.wordExists(label).then((exists) => {
+          if (exists) {
+            loadWord(label, node.id, node.id);
+            onWordSelect?.(label);
+          } else {
+            setErrorMessage(`"${label}"은(는) 사전에 없는 접두사입니다`);
+          }
+        });
         return;
       }
 
@@ -1223,17 +1345,31 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
         return;
       }
     } else if (node.type === 'derivative') {
-      // Pass the derivative node ID as parent and as clicked node for loading indicator
-      loadWord(node.label, node.id, node.id);
-      onWordSelect?.(node.label);
+      // 파생어: words.txt 검증 후 검색
+      const derivativeWord = node.label.toLowerCase().trim();
+      api.wordExists(derivativeWord).then((exists) => {
+        if (exists) {
+          loadWord(derivativeWord, node.id, node.id);
+          onWordSelect?.(derivativeWord);
+        } else {
+          setErrorMessage(`"${node.label}"은(는) 사전에 없는 단어입니다`);
+        }
+      });
     } else if (node.type === 'synonym') {
-      // Load synonym word etymology
-      loadWord(node.label, node.id, node.id);
-      onWordSelect?.(node.label);
+      // 유사어: words.txt 검증 후 검색
+      const synonymWord = node.label.toLowerCase().trim();
+      api.wordExists(synonymWord).then((exists) => {
+        if (exists) {
+          loadWord(synonymWord, node.id, node.id);
+          onWordSelect?.(synonymWord);
+        } else {
+          setErrorMessage(`"${node.label}"은(는) 사전에 없는 단어입니다`);
+        }
+      });
     } else if (node.type === 'root') {
       // 어근 클릭 시 API 호출 안 함 (정보 표시만)
     }
-  }, [onWordSelect]);
+  }, [onWordSelect, existsInCache]);
 
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     // Guard against undefined coordinates during initialization
@@ -1403,7 +1539,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
       {/* Detail Panel */}
       <div
-        className={`absolute top-0 right-0 ${isComparing ? 'w-[700px]' : 'w-96'} h-full bg-slate-800/95 backdrop-blur-sm border-l border-slate-700 overflow-y-auto z-20 transition-all duration-300 ease-out ${selectedNode?.etymology ? 'translate-x-0' : 'translate-x-full'
+        className={`absolute top-0 right-0 w-96 h-full bg-slate-800/95 backdrop-blur-sm border-l border-slate-700 overflow-y-auto z-20 transition-all duration-300 ease-out ${selectedNode?.etymology ? 'translate-x-0' : 'translate-x-full'
           }`}
       >
         {selectedNode?.etymology && (
@@ -1411,16 +1547,18 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
             <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between z-10">
               <h2 className="text-xl font-bold text-white capitalize">{selectedNode.label}</h2>
               <div className="flex items-center gap-2">
-                {selectedNode.type === 'word' && !isComparing && (
+                {selectedNode.type === 'word' && (
                   <>
-                    <button
-                      onClick={handleRefreshEtymology}
-                      disabled={refreshLoading}
-                      className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
-                      title="새 설명 생성"
-                    >
-                      <RefreshCw className={`w-5 h-5 text-slate-400 ${refreshLoading ? 'animate-spin' : ''}`} />
-                    </button>
+                    {totalRevisions < 3 && (
+                      <button
+                        onClick={handleRefreshEtymology}
+                        disabled={refreshLoading}
+                        className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                        title="새 설명 생성"
+                      >
+                        <RefreshCw className={`w-5 h-5 text-slate-400 ${refreshLoading ? 'animate-spin' : ''}`} />
+                      </button>
+                    )}
                     {selectedNode.wordId && (
                       <button
                         onClick={() => setIsErrorReportOpen(true)}
@@ -1435,8 +1573,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                 <button
                   onClick={() => {
                     setSelectedNode(null);
-                    setIsComparing(false);
-                    setPrevEtymology(null);
+                    setShowRevisionDropdown(false);
                   }}
                   className="p-1 hover:bg-slate-700 rounded-lg transition-colors"
                 >
@@ -1445,72 +1582,61 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
               </div>
             </div>
 
-            {/* Comparison Mode */}
-            {isComparing && prevEtymology ? (
-              <div className="p-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Previous Etymology */}
-                  <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-600">
-                    <h3 className="text-sm font-semibold text-amber-400 mb-3">이전 설명</h3>
-                    {prevEtymology.definition && (
-                      <div className="mb-4">
-                        <p className="text-base font-medium text-white mb-1">
-                          {prevEtymology.definition.brief}
-                        </p>
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                          {prevEtymology.definition.detailed}
-                        </p>
-                      </div>
-                    )}
-                    {prevEtymology.origin && (
-                      <div className="text-xs text-slate-400">
-                        <span className="text-amber-400">{prevEtymology.origin.language}</span>
-                        {' '}→ {prevEtymology.origin.root}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* New Etymology */}
-                  <div className="bg-slate-900/50 rounded-lg p-4 border border-indigo-500">
-                    <h3 className="text-sm font-semibold text-indigo-400 mb-3">새 설명</h3>
-                    {selectedNode.etymology.definition && (
-                      <div className="mb-4">
-                        <p className="text-base font-medium text-white mb-1">
-                          {selectedNode.etymology.definition.brief}
-                        </p>
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                          {selectedNode.etymology.definition.detailed}
-                        </p>
-                      </div>
-                    )}
-                    {selectedNode.etymology.origin && (
-                      <div className="text-xs text-slate-400">
-                        <span className="text-amber-400">{selectedNode.etymology.origin.language}</span>
-                        {' '}→ {selectedNode.etymology.origin.root}
-                      </div>
+            {/* Revision Selector */}
+            {totalRevisions > 1 && (
+              <div className="px-4 py-2 border-b border-slate-700 relative flex items-center gap-2 h-10">
+                <button
+                  onClick={() => setShowRevisionDropdown(!showRevisionDropdown)}
+                  className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+                >
+                  <span>버전 {currentRevision} / {totalRevisions}</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showRevisionDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                {/* Save button or saved indicator - fixed height container */}
+                {user && (
+                  <div className="flex items-center h-6">
+                    {currentRevision !== savedRevision ? (
+                      <button
+                        onClick={handleSaveRevision}
+                        disabled={savingRevision}
+                        className="flex items-center gap-1 px-2 h-6 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors disabled:opacity-50"
+                        title="이 버전을 기본으로 저장"
+                      >
+                        <Save className={`w-3 h-3 ${savingRevision ? 'animate-pulse' : ''}`} />
+                        <span>저장</span>
+                      </button>
+                    ) : savedRevision > 0 && (
+                      <span className="flex items-center gap-1 px-2 h-6 text-xs text-green-400">
+                        <Check className="w-3 h-3" />
+                        저장됨
+                      </span>
                     )}
                   </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-center gap-3 mt-6">
-                  <button
-                    onClick={handleApplyEtymology}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors text-sm font-medium"
-                  >
-                    새 설명 적용
-                  </button>
-                  <button
-                    onClick={handleRevertEtymology}
-                    className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors text-sm font-medium"
-                  >
-                    취소
-                  </button>
-                </div>
+                )}
+                {showRevisionDropdown && (
+                  <div className="absolute top-full left-4 mt-1 bg-slate-700 rounded-lg shadow-lg overflow-hidden z-30">
+                    {revisions.map((rev) => (
+                      <button
+                        key={rev.revisionNumber}
+                        onClick={() => handleSelectRevision(rev.revisionNumber)}
+                        className={`flex items-center justify-between w-full px-4 py-2 text-left text-sm hover:bg-slate-600 transition-colors ${
+                          rev.revisionNumber === currentRevision ? 'bg-indigo-600 text-white' : 'text-slate-300'
+                        }`}
+                      >
+                        <span>버전 {rev.revisionNumber}</span>
+                        {/* Show checkmark on saved version */}
+                        {user && rev.revisionNumber === savedRevision && (
+                          <Check className="w-4 h-4 text-green-400 ml-2" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            ) : (
-              /* Normal Detail View */
-              <div className="p-4 space-y-6">
+            )}
+
+            {/* Detail View */}
+            <div className="p-4 space-y-6">
                 {/* Definition */}
                 {selectedNode.etymology.definition && (
                   <section>
@@ -1582,9 +1708,9 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                       {selectedNode.etymology.origin.rootMeaning && (
                         <p className="text-sm text-slate-400">{selectedNode.etymology.origin.rootMeaning}</p>
                       )}
-                      {hasValidComponents(selectedNode.etymology.origin.components) && (
+                      {selectedNode.etymology.origin.components && selectedNode.etymology.origin.components.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
-                          {filterValidComponents(selectedNode.etymology.origin.components).map((comp, i) => (
+                          {selectedNode.etymology.origin.components.map((comp, i) => (
                             <div key={i} className="bg-purple-500/20 px-2 py-1 rounded text-sm">
                               <span className="text-purple-300 font-medium">{comp.part}</span>
                               <span className="text-slate-400 ml-1">
@@ -1703,7 +1829,6 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                   </section>
                 )}
               </div>
-            )}
           </>
         )}
       </div>

@@ -101,10 +101,10 @@ func (h *FillHandler) StartFill(c *gin.Context) {
 	}
 	h.mu.RUnlock()
 
-	// Count total unfilled words
+	// Count total unfilled words (words without any revision)
 	var total int64
 	h.db.Model(&model.Word{}).
-		Where("language = ? AND (etymology IS NULL OR etymology = 'null'::jsonb OR etymology = '{}'::jsonb)", langKey).
+		Where("language = ? AND id NOT IN (SELECT DISTINCT word_id FROM etymology_revisions)", langKey).
 		Count(&total)
 
 	if total == 0 {
@@ -248,9 +248,9 @@ func (h *FillHandler) runFillJobParallel(ctx context.Context, job *FillJob) {
 			case <-ctx.Done():
 				return
 			default:
-				// Fetch a batch of unfilled words
+				// Fetch a batch of unfilled words (words without any revision)
 				var words []model.Word
-				result := h.db.Where("language = ? AND (etymology IS NULL OR etymology = 'null'::jsonb OR etymology = '{}'::jsonb)", langKey).
+				result := h.db.Where("language = ? AND id NOT IN (SELECT DISTINCT word_id FROM etymology_revisions)", langKey).
 					Order("id ASC").
 					Limit(job.Workers * 2).
 					Find(&words)
@@ -321,11 +321,11 @@ func (h *FillHandler) worker(ctx context.Context, job *FillJob, wordChan <-chan 
 				return
 			}
 
-			// Double-check: skip if already filled (safety net for race conditions)
-			var check model.Word
-			h.db.Select("id", "etymology").Where("id = ?", word.ID).First(&check)
-			if len(check.Etymology) > 0 && string(check.Etymology) != "null" && string(check.Etymology) != "{}" {
-				// Already filled, remove from processing and skip
+			// Double-check: skip if already has a revision (safety net for race conditions)
+			var revCount int64
+			h.db.Model(&model.EtymologyRevision{}).Where("word_id = ?", word.ID).Count(&revCount)
+			if revCount > 0 {
+				// Already has revision, remove from processing and skip
 				processingMu.Lock()
 				delete(processing, word.ID)
 				processingMu.Unlock()
@@ -367,9 +367,14 @@ func (h *FillHandler) worker(ctx context.Context, job *FillJob, wordChan <-chan 
 				}
 				job.mu.Unlock()
 			} else {
-				// Save etymology to database
+				// Save etymology as revision
 				etymologyJSON, _ := json.Marshal(etymology)
-				if err := h.db.Model(&word).Update("etymology", datatypes.JSON(etymologyJSON)).Error; err != nil {
+				revision := model.EtymologyRevision{
+					WordID:         word.ID,
+					RevisionNumber: 1,
+					Etymology:      datatypes.JSON(etymologyJSON),
+				}
+				if err := h.db.Create(&revision).Error; err != nil {
 					log.Printf("[Worker %d] Error saving %s: %v", workerID, word.Word, err)
 					atomic.AddInt64(&job.Failed, 1)
 				} else {

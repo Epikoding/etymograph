@@ -14,7 +14,6 @@ import (
 	"unicode"
 
 	"github.com/etymograph/api/internal/config"
-	"github.com/etymograph/api/internal/model"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -48,6 +47,14 @@ type Issue struct {
 	Details string
 }
 
+// WordWithEtymology combines word data with its latest etymology revision
+type WordWithEtymology struct {
+	ID        int64
+	Word      string
+	Language  string
+	Etymology []byte `gorm:"column:etymology"`
+}
+
 func main() {
 	workers := flag.Int("workers", 10, "Number of parallel workers")
 	language := flag.String("language", "ko", "Language to audit")
@@ -62,16 +69,16 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Get total count
+	// Get total count - words that have at least one etymology revision
 	var total int64
-	db.Model(&model.Word{}).
-		Where("language = ? AND etymology IS NOT NULL AND etymology <> 'null'::jsonb AND etymology <> '{}'::jsonb", *language).
-		Count(&total)
+	db.Raw(`SELECT COUNT(DISTINCT w.id) FROM words w
+		INNER JOIN etymology_revisions er ON er.word_id = w.id
+		WHERE w.language = ?`, *language).Scan(&total)
 
 	fmt.Printf("Auditing %d words with %d workers...\n", total, *workers)
 
-	// Create channel for words
-	wordChan := make(chan model.Word, *workers*10)
+	// Create channel for words with etymology
+	wordChan := make(chan WordWithEtymology, *workers*10)
 	issueChan := make(chan Issue, 1000)
 
 	var processed int64
@@ -111,17 +118,24 @@ func main() {
 		done <- true
 	}()
 
-	// Fetch words in batches
+	// Fetch words in batches with their latest etymology revision
 	startTime := time.Now()
 	batchSize := 500
 	offset := 0
 	for {
-		var words []model.Word
-		result := db.Where("language = ? AND etymology IS NOT NULL AND etymology <> 'null'::jsonb AND etymology <> '{}'::jsonb", *language).
-			Order("id ASC").
-			Offset(offset).
-			Limit(batchSize).
-			Find(&words)
+		var words []WordWithEtymology
+		// Get words with their latest revision (highest revision_number)
+		result := db.Raw(`
+			SELECT w.id, w.word, w.language, er.etymology
+			FROM words w
+			INNER JOIN etymology_revisions er ON er.word_id = w.id
+			WHERE w.language = ?
+			AND er.revision_number = (
+				SELECT MAX(revision_number) FROM etymology_revisions WHERE word_id = w.id
+			)
+			ORDER BY w.id ASC
+			LIMIT ? OFFSET ?
+		`, *language, batchSize, offset).Scan(&words)
 
 		if result.Error != nil {
 			log.Printf("Database error: %v", result.Error)
@@ -180,7 +194,7 @@ func main() {
 	}
 }
 
-func auditWord(word model.Word) []Issue {
+func auditWord(word WordWithEtymology) []Issue {
 	var issues []Issue
 
 	var etym Etymology
