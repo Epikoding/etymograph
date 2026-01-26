@@ -37,13 +37,23 @@ const SAMPLE_WORDS = [
   'metropolis', 'hypothesis', 'synthesis', 'analysis',
 ];
 
-export default function AnimatedGraphBackground() {
+interface Props {
+  isPaused?: boolean;
+}
+
+export default function AnimatedGraphBackground({ isPaused = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
   const nodesRef = useRef<Node[]>([]);
   const linksRef = useRef<Link[]>([]);
   const mouseRef = useRef({ x: -1000, y: -1000 });
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const isPausedRef = useRef(isPaused);
+
+  // Update ref when prop changes
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -125,6 +135,12 @@ export default function AnimatedGraphBackground() {
     // Animation loop
     let lastTime = 0;
     const animate = (time: number) => {
+      // Skip animation when paused, but keep the loop running
+      if (isPausedRef.current) {
+        animationRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
       const deltaTime = Math.min((time - lastTime) / 16, 2);
       lastTime = time;
 

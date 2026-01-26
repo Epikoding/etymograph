@@ -160,13 +160,15 @@ function HomeContent() {
     setLoading(false);
   };
 
-  // Landing page with animated background
-  if (!searchedWord) {
-    return (
-      <div className="relative h-[calc(100vh-64px)] overflow-hidden">
-        {/* Animated Graph Background */}
-        <AnimatedGraphBackground />
+  const isLandingPage = !searchedWord;
 
+  return (
+    <div className="relative h-[calc(100vh-64px)] overflow-hidden">
+      {/* Animated Graph Background - always mounted */}
+      <AnimatedGraphBackground isPaused={!isLandingPage} />
+
+      {/* Landing Page Content */}
+      <div className={`absolute inset-0 transition-opacity duration-300 ${isLandingPage ? 'opacity-100 z-10' : 'opacity-0 -z-10 pointer-events-none'}`}>
         {/* Dark overlay with blur and vignette effect */}
         <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px] pointer-events-none z-[1]" />
         <div
@@ -196,7 +198,7 @@ function HomeContent() {
             <form onSubmit={handleSearch} className="relative">
               <div className="relative">
                 <input
-                  ref={inputRef}
+                  ref={isLandingPage ? inputRef : undefined}
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -220,7 +222,7 @@ function HomeContent() {
                 </button>
 
                 {/* Autocomplete Dropdown */}
-                {showSuggestions && hasSuggestions && (
+                {isLandingPage && showSuggestions && hasSuggestions && (
                   <div
                     ref={suggestionsRef}
                     className="absolute top-full left-0 right-0 mt-2 bg-slate-800/95 backdrop-blur-sm border border-slate-600 rounded-xl overflow-hidden shadow-xl z-50"
@@ -312,118 +314,118 @@ function HomeContent() {
           </div>
         </div>
       </div>
-    );
-  }
-
-  // Graph view after search
-  return (
-    <div className="flex flex-col h-[calc(100vh-64px)]">
-      {/* Compact Search Header */}
-      <div className="flex-shrink-0 px-6 py-3 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 relative z-30">
-        <div className="max-w-4xl mx-auto">
-          {/* Search Form */}
-          <form onSubmit={handleSearch}>
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onFocus={() => hasSuggestions && setShowSuggestions(true)}
-                placeholder="다른 단어 검색..."
-                className="w-full px-4 py-2 pl-10 text-white bg-slate-800 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-colors placeholder-slate-500"
-                autoComplete="off"
-              />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <button
-                type="submit"
-                disabled={loading || !query.trim() || query.trim() === '-'}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-4 py-1 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading ? (
-                  <LoadingSpinner size="sm" />
-                ) : (
-                  '검색'
-                )}
-              </button>
-
-              {/* Autocomplete Dropdown */}
-              {showSuggestions && hasSuggestions && (
-                <div
-                  ref={suggestionsRef}
-                  className="absolute top-full left-0 right-0 mt-1 bg-slate-800/95 backdrop-blur-sm border border-slate-600 rounded-lg overflow-hidden shadow-xl z-50"
-                >
-                  {/* Priority suggestions */}
-                  {suggestions.priority.map((word, index) => (
-                    <button
-                      key={`priority-${word}`}
-                      type="button"
-                      onClick={() => handleSuggestionClick(word)}
-                      className={`w-full px-4 py-2 text-left text-white text-sm transition-colors flex items-center gap-2 ${
-                        index === selectedIndex
-                          ? 'bg-indigo-600'
-                          : 'bg-amber-900/30 hover:bg-amber-900/50'
-                      }`}
-                    >
-                      <span className="text-amber-400 text-xs">★</span>
-                      <span>
-                        <span className="text-indigo-400">{word.slice(0, query.length)}</span>
-                        <span>{word.slice(query.length)}</span>
-                      </span>
-                    </button>
-                  ))}
-                  {/* Divider between priority and general */}
-                  {suggestions.priority.length > 0 && suggestions.general.length > 0 && (
-                    <div className="border-t border-slate-600 my-1" />
-                  )}
-                  {/* General suggestions */}
-                  {suggestions.general.map((word, index) => {
-                    const actualIndex = suggestions.priority.length + index;
-                    return (
-                      <button
-                        key={`general-${word}`}
-                        type="button"
-                        onClick={() => handleSuggestionClick(word)}
-                        className={`w-full px-4 py-2 text-left text-white text-sm transition-colors ${
-                          actualIndex === selectedIndex
-                            ? 'bg-indigo-600'
-                            : 'hover:bg-slate-700'
-                        }`}
-                      >
-                        <span className="text-indigo-400">{word.slice(0, query.length)}</span>
-                        <span>{word.slice(query.length)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </form>
-        </div>
-      </div>
 
       {/* Graph View */}
-      <div
-        className="flex-1 relative"
-        onClick={() => {
-          if (showSuggestions) {
-            setShowSuggestions(false);
-          }
-        }}
-      >
-        {/* Loading Overlay */}
-        {loading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900">
-            <LoadingSpinner size="lg" />
+      <div className={`absolute inset-0 flex flex-col transition-opacity duration-300 ${!isLandingPage ? 'opacity-100 z-10' : 'opacity-0 -z-10 pointer-events-none'}`}>
+        {/* Compact Search Header */}
+        <div className="flex-shrink-0 px-6 py-3 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 relative z-30">
+          <div className="max-w-4xl mx-auto">
+            {/* Search Form */}
+            <form onSubmit={handleSearch}>
+              <div className="relative">
+                <input
+                  ref={!isLandingPage ? inputRef : undefined}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => hasSuggestions && setShowSuggestions(true)}
+                  placeholder="다른 단어 검색..."
+                  className="w-full px-4 py-2 pl-10 text-white bg-slate-800 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-colors placeholder-slate-500"
+                  autoComplete="off"
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <button
+                  type="submit"
+                  disabled={loading || !query.trim() || query.trim() === '-'}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 px-4 py-1 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    '검색'
+                  )}
+                </button>
+
+                {/* Autocomplete Dropdown */}
+                {!isLandingPage && showSuggestions && hasSuggestions && (
+                  <div
+                    ref={suggestionsRef}
+                    className="absolute top-full left-0 right-0 mt-1 bg-slate-800/95 backdrop-blur-sm border border-slate-600 rounded-lg overflow-hidden shadow-xl z-50"
+                  >
+                    {/* Priority suggestions */}
+                    {suggestions.priority.map((word, index) => (
+                      <button
+                        key={`priority-${word}`}
+                        type="button"
+                        onClick={() => handleSuggestionClick(word)}
+                        className={`w-full px-4 py-2 text-left text-white text-sm transition-colors flex items-center gap-2 ${
+                          index === selectedIndex
+                            ? 'bg-indigo-600'
+                            : 'bg-amber-900/30 hover:bg-amber-900/50'
+                        }`}
+                      >
+                        <span className="text-amber-400 text-xs">★</span>
+                        <span>
+                          <span className="text-indigo-400">{word.slice(0, query.length)}</span>
+                          <span>{word.slice(query.length)}</span>
+                        </span>
+                      </button>
+                    ))}
+                    {/* Divider between priority and general */}
+                    {suggestions.priority.length > 0 && suggestions.general.length > 0 && (
+                      <div className="border-t border-slate-600 my-1" />
+                    )}
+                    {/* General suggestions */}
+                    {suggestions.general.map((word, index) => {
+                      const actualIndex = suggestions.priority.length + index;
+                      return (
+                        <button
+                          key={`general-${word}`}
+                          type="button"
+                          onClick={() => handleSuggestionClick(word)}
+                          className={`w-full px-4 py-2 text-left text-white text-sm transition-colors ${
+                            actualIndex === selectedIndex
+                              ? 'bg-indigo-600'
+                              : 'hover:bg-slate-700'
+                        }`}
+                        >
+                          <span className="text-indigo-400">{word.slice(0, query.length)}</span>
+                          <span>{word.slice(query.length)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </form>
           </div>
-        )}
-        <EtymologyGraph
-          initialWord={searchedWord}
-          language="Korean"
-          onWordSelect={handleWordSelect}
-          onInitialLoad={handleInitialLoad}
-        />
+        </div>
+
+        {/* Graph View */}
+        <div
+          className="flex-1 relative"
+          onClick={() => {
+            if (showSuggestions) {
+              setShowSuggestions(false);
+            }
+          }}
+        >
+          {/* Loading Overlay */}
+          {loading && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900">
+              <LoadingSpinner size="lg" />
+            </div>
+          )}
+          {searchedWord && (
+            <EtymologyGraph
+              initialWord={searchedWord}
+              language="Korean"
+              onWordSelect={handleWordSelect}
+              onInitialLoad={handleInitialLoad}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
