@@ -27,7 +27,7 @@ func Load() *Config {
 		JWTSecret:          getEnv("JWT_SECRET", "your-256-bit-secret-change-in-production"),
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
-		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:4000/auth/google/callback"),
+		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:4000/api/auth/google/callback"),
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
 		AdminEmails:        parseAdminEmails(getEnv("ADMIN_EMAILS", "")),
 	}

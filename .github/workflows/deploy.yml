@@ -88,6 +88,12 @@ jobs:
             LLM_PROVIDER: "gemini"
             GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
             GEMINI_MODEL: "gemini-2.0-flash"
+            JWT_SECRET: "${{ secrets.JWT_SECRET }}"
+            GOOGLE_CLIENT_ID: "${{ secrets.GOOGLE_CLIENT_ID }}"
+            GOOGLE_CLIENT_SECRET: "${{ secrets.GOOGLE_CLIENT_SECRET }}"
+            GOOGLE_REDIRECT_URL: "https://wordtree.wiki/api/auth/google/callback"
+            FRONTEND_URL: "https://wordtree.wiki"
+            ADMIN_EMAILS: "${{ secrets.ADMIN_EMAILS }}"
           EOF
 
       - name: Update image tags with kustomize
