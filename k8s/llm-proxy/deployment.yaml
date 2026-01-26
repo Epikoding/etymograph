@@ -37,6 +37,21 @@ spec:
                 configMapKeyRef:
                   name: etymograph-config
                   key: OLLAMA_MODEL
+            - name: LLM_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: etymograph-secrets
+                  key: LLM_PROVIDER
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: etymograph-secrets
+                  key: GEMINI_API_KEY
+            - name: GEMINI_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: etymograph-secrets
+                  key: GEMINI_MODEL
           resources:
             requests:
               memory: "64Mi"
