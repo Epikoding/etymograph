@@ -120,7 +120,7 @@ func main() {
 		api.GET("/words/:word/etymology", wordHandler.GetEtymology)
 		api.GET("/words/:word/derivatives", wordHandler.GetDerivatives)
 		api.GET("/words/:word/synonyms", wordHandler.GetSynonyms)
-		api.POST("/words/:word/refresh", middleware.OptionalAuthMiddleware(cfg.JWTSecret), wordHandler.RefreshEtymology)
+		api.POST("/words/:word/refresh", middleware.AuthMiddleware(cfg.JWTSecret), wordHandler.RefreshEtymology)
 		api.GET("/words/:word/revisions", wordHandler.GetRevisions)
 		api.GET("/words/:word/revisions/:revNum", wordHandler.GetRevision)
 		api.POST("/words/:word/revisions/:revNum/select", middleware.AuthMiddleware(cfg.JWTSecret), wordHandler.SelectRevision)
