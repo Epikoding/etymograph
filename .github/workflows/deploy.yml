@@ -71,6 +71,25 @@ jobs:
             echo "$HOME/.local/bin" >> $GITHUB_PATH
           fi
 
+      - name: Create secrets.yaml from GitHub Secrets
+        run: |
+          cat << EOF > k8s/base/secrets.yaml
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: etymograph-secrets
+            namespace: etymograph
+          type: Opaque
+          stringData:
+            POSTGRES_USER: etymograph
+            POSTGRES_PASSWORD: "${{ secrets.POSTGRES_PASSWORD }}"
+            POSTGRES_DB: etymograph
+            DATABASE_URL: "postgresql://etymograph:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/etymograph"
+            LLM_PROVIDER: "gemini"
+            GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+            GEMINI_MODEL: "gemini-2.0-flash"
+          EOF
+
       - name: Update image tags with kustomize
         env:
           SHORT_SHA: ${{ needs.build.outputs.short_sha }}
