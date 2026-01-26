@@ -53,3 +53,5 @@ CLAUDE.md
 
 # Kubernetes secrets (use secrets.yaml.example as template)
 k8s/base/secrets.yaml
+etymograph_data.sql
+etymograph_backup.sql

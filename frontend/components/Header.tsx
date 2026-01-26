@@ -112,8 +112,8 @@ export default function Header() {
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors text-sm font-medium"
                 >
                   <LogIn className="w-4 h-4" />
-                  <span className="hidden sm:inline">Sign in with Google</span>
-                  <span className="sm:hidden">Sign in</span>
+                  <span className="hidden sm:inline">로그인</span>
+                  <span className="sm:hidden">로그인</span>
                 </button>
               )}
             </div>

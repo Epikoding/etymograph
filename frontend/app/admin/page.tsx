@@ -147,7 +147,7 @@ export default function AdminPage() {
             className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors font-medium"
           >
             <LogIn className="w-5 h-5" />
-            Sign in with Google
+            로그인
           </button>
         </div>
       </div>
