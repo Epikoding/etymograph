@@ -61,6 +61,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install kustomize
+        run: |
+          if ! command -v kustomize &> /dev/null; then
+            mkdir -p $HOME/.local/bin
+            cd $HOME/.local/bin
+            curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+            echo "$HOME/.local/bin" >> $GITHUB_PATH
+          fi
+
       - name: Update image tags with kustomize
         env:
           SHORT_SHA: ${{ needs.build.outputs.short_sha }}
