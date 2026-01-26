@@ -30,8 +30,8 @@ const COLORS = [
 ];
 
 const SAMPLE_WORDS = [
-  'philosophy', 'etymology', 'transport', 'manuscript',
-  'telegraph', 'biology', 'photograph', 'telephone',
+  'philosophy', 'etymology', 'transport', 'abstract',
+  'telegraph', 'image', 'photograph', 'telephone',
   'democracy', 'astronomy', 'geography', 'psychology',
   'technology', 'morphology', 'chronicle', 'symphony',
   'metropolis', 'hypothesis', 'synthesis', 'analysis',

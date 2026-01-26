@@ -8,7 +8,7 @@ import AnimatedGraphBackground from '@/components/AnimatedGraphBackground';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { api } from '@/lib/api';
 
-const EXAMPLE_WORDS = ['philosophy', 'transport', 'manuscript', 'telegraph', 'democracy', 'biology'];
+const EXAMPLE_WORDS = ['philosophy', 'transport', 'abstract', 'telegraph', 'democracy', 'image'];
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -158,10 +158,6 @@ function HomeContent() {
 
   const handleInitialLoad = () => {
     setLoading(false);
-  };
-
-  const handleBackToHome = () => {
-    router.push('/');
   };
 
   // Landing page with animated background
@@ -324,20 +320,9 @@ function HomeContent() {
     <div className="flex flex-col h-[calc(100vh-64px)]">
       {/* Compact Search Header */}
       <div className="flex-shrink-0 px-6 py-3 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 relative z-30">
-        <div className="max-w-4xl mx-auto flex items-center gap-4">
-          {/* Back button */}
-          <button
-            onClick={handleBackToHome}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-            title="홈으로"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-          </button>
-
+        <div className="max-w-4xl mx-auto">
           {/* Search Form */}
-          <form onSubmit={handleSearch} className="flex-1">
+          <form onSubmit={handleSearch}>
             <div className="relative">
               <input
                 ref={inputRef}
