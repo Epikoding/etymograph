@@ -1539,10 +1539,11 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
 
       {/* Detail Panel */}
       <div
-        className={`absolute top-0 right-0 w-96 h-full bg-slate-800/95 backdrop-blur-sm border-l border-slate-700 overflow-y-auto z-20 transition-all duration-300 ease-out ${selectedNode?.etymology ? 'translate-x-0' : 'translate-x-full'
-          }`}
+        className={`absolute top-0 right-0 w-full md:w-96 h-full bg-slate-800/95 md:backdrop-blur-sm border-l border-slate-700 overflow-y-auto z-20 transition-transform duration-300 ease-out will-change-transform transform-gpu ${
+          selectedNode?.etymology ? 'translate-x-0' : 'translate-x-full'
+        }`}
       >
-        {selectedNode?.etymology && (
+        {selectedNode?.etymology ? (
           <>
             <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between z-10">
               <h2 className="text-xl font-bold text-white capitalize">{selectedNode.label}</h2>
@@ -1875,7 +1876,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
                 )}
               </div>
           </>
-        )}
+        ) : null}
       </div>
 
       <ForceGraph2D
