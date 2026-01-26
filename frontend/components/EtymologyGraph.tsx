@@ -1550,7 +1550,7 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
               <div className="flex items-center gap-2">
                 {selectedNode.type === 'word' && (
                   <>
-                    {totalRevisions < 3 && (
+                    {user && totalRevisions < 3 && (
                       <button
                         onClick={handleRefreshEtymology}
                         disabled={refreshLoading}
