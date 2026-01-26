@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refreshToken = localStorage.getItem('refreshToken');
     if (refreshToken) {
       try {
-        await fetch(`${API_URL}/auth/logout`, {
+        await fetch(`${API_URL}/api/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!refreshToken) return null;
 
     try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
+      const response = await fetch(`${API_URL}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = useCallback(async (accessToken: string) => {
     try {
-      const response = await fetch(`${API_URL}/auth/me`, {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(() => {
     // Redirect to Google OAuth
-    window.location.href = `${API_URL}/auth/google`;
+    window.location.href = `${API_URL}/api/auth/google`;
   }, []);
 
   // Handle OAuth callback
