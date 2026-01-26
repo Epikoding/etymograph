@@ -72,34 +72,48 @@ Frontend (Next.js:3000) → API (Go:4000) → LLM Proxy (Go:8081) → Gemini/Oll
 - **단어 검증**: 로컬 단어 목록 1차 검증 → Free Dictionary API 2차 검증 (LLM 토큰 낭비 방지)
 - **etymology JSON 구조**: `{ "ko": {...}, "ja": {...} }` 형태로 다국어 지원
 - **접두사/접미사 지원**: dash(-)로 접사 구분 (`-er` = 접미사, `un-` = 접두사)
+- **다중 버전 시스템**: 단어당 최대 3개 어원 버전 저장. `etymology_revisions` 테이블에서 관리. 로그인 사용자는 선호 버전 선택 가능
 
 ## Project Structure
 
 ```
 etymograph/
 ├── api-go/           # Go API 서버
-│   ├── cmd/server/   # main.go 진입점
+│   ├── cmd/
+│   │   ├── server/   # main.go 진입점
+│   │   └── seed/     # 단어 시드 CLI
 │   ├── internal/
+│   │   ├── auth/     # Google OAuth, JWT 토큰 관리
 │   │   ├── cache/    # Redis 캐시 클라이언트
-│   │   ├── handler/  # HTTP 핸들러 (word, session, export)
-│   │   ├── model/    # GORM 모델 (Word, Session)
+│   │   ├── handler/  # HTTP 핸들러 (word, fill, session, export, auth, history)
+│   │   ├── middleware/ # 인증 미들웨어
+│   │   ├── model/    # GORM 모델 (Word, EtymologyRevision, UserEtymologyPreference, Session, User, SearchHistory)
 │   │   ├── client/   # LLM Proxy 클라이언트
-│   │   ├── validator/# 단어 유효성 검증
-│   │   └── scheduler/# 백그라운드 어원 생성 스케줄러
+│   │   └── validator/# 단어 유효성 검증
 │   └── data/         # words.txt, priority_words.txt
 ├── llm-proxy/        # LLM 프록시 서버
 │   └── internal/
 │       ├── llm/      # Gemini/Ollama 클라이언트, prompts.go
 │       └── handler/  # etymology, derivatives, synonyms (접두사/접미사 감지 포함)
 ├── frontend/         # Next.js 앱
-│   ├── components/   # EtymologyGraph, EtymologyCard, ...
-│   ├── lib/api.ts    # API 클라이언트
-│   └── types/word.ts # Etymology 타입 정의
+│   ├── components/   # EtymologyGraph, EtymologyCard, HistoryPanel, Header, ...
+│   ├── lib/
+│   │   ├── api.ts              # API 클라이언트
+│   │   └── use-morpheme-cache.ts # 접사 캐싱 훅
+│   └── types/        # word.ts (Etymology), auth.ts (User, History)
 ├── rate-limiter/     # Token bucket rate limiter
 └── k8s/              # Kubernetes manifests
 ```
 
 ## API Endpoints
+
+### 형태소 API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/morphemes | 접두사/접미사 목록 (프론트엔드 캐싱용) |
+
+### 단어 API
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -107,11 +121,32 @@ etymograph/
 | GET | /api/words/:word/etymology | 어원 상세 |
 | GET | /api/words/:word/derivatives | 파생어 목록 |
 | GET | /api/words/:word/synonyms | 유사어 비교 |
-| POST | /api/words/:word/refresh | 어원 새로고침 (LLM 재호출) |
-| POST | /api/words/:word/apply | 새 어원 적용 확정 |
-| POST | /api/words/:word/revert | 이전 어원으로 복원 |
+| POST | /api/words/:word/refresh | 어원 새로고침 (새 버전 생성, 최대 3개) |
+| GET | /api/words/:word/revisions | 해당 단어의 모든 버전 목록 |
+| GET | /api/words/:word/revisions/:revNum | 특정 버전 조회 |
+| POST | /api/words/:word/revisions/:revNum/select | 유저가 해당 버전 선택 (로그인 필요) |
 
-모든 엔드포인트는 `?language=Korean|Japanese|Chinese` 쿼리 파라미터 지원.
+### 어원 일괄 생성 API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/words/unfilled | revision이 없는 단어 목록 (페이지네이션) |
+| POST | /api/words/fill-etymology | 어원 일괄 생성 Job 시작 (revision 생성) |
+| GET | /api/words/fill-status/:jobId | Job 진행 상황 조회 |
+| POST | /api/words/fill-etymology/stop | 진행 중인 Job 중단 |
+| GET | /api/words/fill-jobs | 모든 Job 목록 조회 |
+
+모든 단어 엔드포인트는 `?language=Korean` 쿼리 파라미터 지원 (현재 한국어만 지원).
+
+### 검색 히스토리 API (인증 필요)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/history | 검색 히스토리 조회 (페이지네이션) |
+| GET | /api/history/dates | 날짜별 히스토리 요약 목록 |
+| GET | /api/history/dates/:date | 특정 날짜 검색어 목록 (YYYY-MM-DD) |
+| DELETE | /api/history/:id | 특정 히스토리 삭제 |
+| DELETE | /api/history | 전체 히스토리 삭제 |
 
 ## Environment Variables
 
@@ -124,10 +159,27 @@ GEMINI_MODEL=gemini-2.0-flash
 # Ollama (로컬 모델 사용 시)
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=qwen3:8b
+```
 
-# 백그라운드 스케줄러 (선택)
-SCHEDULER_ENABLED=false
-SCHEDULER_INTERVAL=5s
+## 단어 시드 및 어원 일괄 생성
+
+```bash
+# 1. 단어 시드 (최초 1회 - priority_words.txt에서 36,900개 단어 DB에 삽입)
+docker compose exec api ./seed
+
+# 2. unfilled 단어 확인
+curl "http://localhost:4000/api/words/unfilled?language=ko&limit=10"
+
+# 3. 어원 일괄 생성 시작
+curl -X POST "http://localhost:4000/api/words/fill-etymology" \
+  -H "Content-Type: application/json" \
+  -d '{"language":"Korean","batchSize":100,"delayMs":2000}'
+
+# 4. 진행 상황 확인
+curl "http://localhost:4000/api/words/fill-status/<jobId>"
+
+# 5. 필요시 중단
+curl -X POST "http://localhost:4000/api/words/fill-etymology/stop"
 ```
 
 ## Graph Node Types
@@ -138,6 +190,21 @@ SCHEDULER_INTERVAL=5s
 | root | 주황색 | 어근 (라틴어/그리스어 원형) |
 | component | 보라색 | 접두사/접미사/어간 |
 | derivative | 청록색 | 같은 어원 파생어 |
+
+### 노드 클릭 동작
+
+| 타입 | 클릭 가능 | 동작 |
+|------|----------|------|
+| word | O | 해당 단어 검색 |
+| root | X | 클릭 불가 (라틴어/그리스어 원형은 정보 표시용) |
+| component | O | 접두사/접미사 검색 가능. 어간(port-)은 하이픈 제거 후 words.txt 검증 |
+| derivative | O | 해당 단어 검색 |
+
+**검증 로직**:
+- 접두사 (`xxx-`): `prefixes.txt` 화이트리스트에서 검증 → 없으면 하이픈 제거 후 `words.txt` fallback
+- 접미사 (`-xxx`): `suffixes.txt` 화이트리스트에서 검증
+- 일반 단어: `words.txt` API로 검증
+- 어간 (`port-`): 접두사 목록에 없으면 → `port`로 변환 → `words.txt` 검증
 
 ## LLM Prompt 규칙 (llm-proxy/internal/llm/prompts.go)
 

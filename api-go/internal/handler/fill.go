@@ -76,7 +76,7 @@ func (h *FillHandler) StartFill(c *gin.Context) {
 		req.Language = "Korean"
 	}
 	if req.Workers <= 0 {
-		req.Workers = 5 // Default 5 parallel workers
+		req.Workers = 100 // Default 100 parallel workers
 	}
 	if req.Workers > 100 {
 		req.Workers = 100 // Max 100 workers

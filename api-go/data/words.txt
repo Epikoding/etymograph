@@ -54,8 +54,6 @@ abbreviated
 abbreviating
 abbreviation
 abbreviator
-abbé
-abbé's
 abcoulomb
 abdicate
 abdicated
@@ -981,7 +979,6 @@ adipose
 adiposities
 adiposity
 adit
-adiós
 adjacency
 adjacent
 adjacently
@@ -1840,7 +1837,6 @@ alcoholized
 alcoholizing
 alcoholometer
 alcove
-alcázar
 aldehyde
 alder
 alderman
@@ -2129,7 +2125,6 @@ alluvium
 ally
 allying
 allyl
-allée
 almanac
 almandine
 almandite
@@ -3536,7 +3531,6 @@ aperitif
 apertural
 aperture
 apery
-aperçu
 apetalous
 apex
 apexes
@@ -3785,10 +3779,6 @@ applicatory
 applied
 applier
 applies
-appliqué
-appliqué's
-appliquéd
-appliquéing
 apply
 applying
 appoggiatura
@@ -4386,7 +4376,6 @@ aruspex
 arvo
 aryl
 arytenoid
-arête
 asafetida
 asarum
 asbestos
@@ -4877,8 +4866,6 @@ attachable
 attached
 attaching
 attachment
-attaché
-attaché's
 attack
 attacked
 attacker
@@ -5442,7 +5429,6 @@ azotobacter
 azure
 azurite
 azygous
-aïoli
 b
 baa
 baaed
@@ -6385,7 +6371,6 @@ bawled
 bawler
 bawling
 bay
-bayadère
 bayard
 bayberries
 bayberry
@@ -7826,7 +7811,6 @@ blastomere
 blastopore
 blastosphere
 blastula
-blasé
 blat
 blatancies
 blatancy
@@ -8758,8 +8742,6 @@ bousing
 boustrophedon
 bout
 boutique
-boutonnière
-boutonnière's
 bouzouki
 bovid
 bovine
@@ -10254,8 +10236,6 @@ caff
 caffeinated
 caffeine
 caftan
-café
-café's
 cage
 caged
 cageling
@@ -10577,8 +10557,6 @@ canalization
 canalize
 canalized
 canalizing
-canapé
-canapé's
 canard
 canaries
 canary
@@ -12241,7 +12219,6 @@ chasseing
 chassepot
 chasseur
 chassis
-chassé
 chaste
 chastely
 chasten
@@ -13077,13 +13054,6 @@ chyme
 chymotrypsin
 chymous
 chyron
-château
-château's
-châteaux
-châtelain
-châtelaine
-châtelaine's
-chèvre
 ciabatta
 ciao
 ciboria
@@ -13276,7 +13246,6 @@ cirrostrati
 cirrostratus
 cirrus
 cirsoid
-ciré
 cis
 cisalpine
 cisco
@@ -13627,9 +13596,6 @@ clevises
 clew
 clewed
 clewing
-cliché
-cliché's
-clichéd
 click
 clickable
 clickbait
@@ -13639,8 +13605,6 @@ clicking
 client
 clientage
 clientship
-clientèle
-clientèle's
 cliff
 cliffhanger
 cliffhanging
@@ -13750,8 +13714,6 @@ cloggiest
 clogging
 cloggy
 cloison
-cloisonné
-cloisonné's
 cloister
 cloistered
 cloistering
@@ -15052,9 +15014,6 @@ computerize
 computerized
 computerizing
 computing
-compère
-compèred
-compèring
 comrade
 comradely
 comraderies
@@ -15445,8 +15404,6 @@ confrontation
 confrontational
 confronted
 confronting
-confrère
-confrère's
 confusable
 confuse
 confused
@@ -15751,8 +15708,6 @@ consoling
 consolingly
 consols
 consolute
-consommé
-consommé's
 consonance
 consonant
 consonantal
@@ -16695,8 +16650,6 @@ corticosteroid
 corticosterone
 cortisol
 cortisone
-cortège
-cortège's
 corundum
 coruscate
 coruscated
@@ -16705,7 +16658,6 @@ coruscation
 corves
 corvette
 corvine
-corvée
 corybantic
 corydalis
 corydalises
@@ -16857,8 +16809,6 @@ couloir
 coulomb
 coulometer
 coulter
-coulée
-coulée's
 coumarin
 coumarone
 council
@@ -17777,8 +17727,6 @@ crowning
 crownpiece
 crownwork
 croze
-croûton
-croûton's
 cru
 cruces
 crucial
@@ -17808,8 +17756,6 @@ cruder
 crudest
 crudities
 crudity
-crudités
-crudités's
 cruel
 crueler
 cruelest
@@ -17949,8 +17895,6 @@ crystallographic
 crystallographies
 crystallography
 crystalloid
-crèche
-crèche's
 csc
 csch
 ctenidia
@@ -18152,7 +18096,6 @@ curatively
 curator
 curatorial
 curatorship
-curaçao
 curb
 curbed
 curbing
@@ -18379,7 +18322,6 @@ cyanotype
 cyathus
 cyberbullies
 cyberbully
-cybercafé
 cybernaut
 cybernetic
 cybernetician
@@ -18501,7 +18443,6 @@ czarevna
 czarina
 czarism
 czarist
-córdoba
 d
 dB
 dab
@@ -20342,8 +20283,6 @@ derrick
 derringer
 derris
 derrises
-derrière
-derrière's
 derry
 derv
 dervish
@@ -20910,7 +20849,6 @@ dialyzing
 diamagnet
 diamagnetic
 diamagnetism
-diamanté
 diameter
 diametral
 diametric
@@ -22359,8 +22297,6 @@ distinguishably
 distinguished
 distinguishes
 distinguishing
-distingué
-distinguée
 distort
 distorted
 distortedly
@@ -22551,8 +22487,6 @@ divorce
 divorced
 divorcement
 divorcing
-divorcée
-divorcée's
 divot
 divulgate
 divulgation
@@ -22825,8 +22759,6 @@ donned
 donning
 donnish
 donnybrook
-donné
-donnée
 donor
 doodad
 doodah
@@ -22880,7 +22812,6 @@ dopiest
 dopily
 dopiness
 doping
-doppelgänger
 dor
 dora
 dorado
@@ -23805,22 +23736,6 @@ dystrophic
 dystrophy
 dysuria
 dziggetai
-débridement
-débutant
-débutante
-débutante's
-déclassé
-déclassée
-décolletage
-décolletage's
-décolleté
-dégagé
-démarche
-démodé
-dérailleur
-dérailleur's
-détente
-détente's
 e
 each
 eager
@@ -25641,8 +25556,6 @@ entrusting
 entry
 entryphone
 entryway
-entrée
-entrée's
 entwine
 entwined
 entwining
@@ -27675,7 +27588,6 @@ fainthearted
 fainting
 faintly
 faintness
-fainéant
 fair
 fairer
 fairest
@@ -28074,8 +27986,6 @@ fayest
 faze
 fazed
 fazing
-faïence
-faïence's
 feal
 fealty
 fear
@@ -28471,10 +28381,6 @@ feyness
 fez
 fezzes
 fiacre
-fiancé
-fiancé's
-fiancée
-fiancée's
 fiasco
 fiascoes
 fiat
@@ -29053,9 +28959,6 @@ flamboyance
 flamboyancy
 flamboyant
 flamboyantly
-flambé
-flambé's
-flambéed
 flame
 flamed
 flamen
@@ -30388,8 +30291,6 @@ frap
 frapped
 frappes
 frapping
-frappé
-frappé's
 frat
 frater
 fraternal
@@ -31117,8 +31018,6 @@ fuzzy
 fyke
 fylfot
 fyrd
-fête
-fête's
 g
 gab
 gabardine
@@ -31287,7 +31186,6 @@ galvanometrical
 galvanoscope
 galvanotropism
 galyak
-galère
 gam
 gamb
 gamba
@@ -31466,8 +31364,6 @@ garrulousness
 garter
 garth
 garvey
-garçon
-garçon's
 gas
 gasbag
 gasconade
@@ -31710,7 +31606,6 @@ gemology
 gemot
 gemsbok
 gemstone
-gemütlich
 genappe
 gendarme
 gendarmerie
@@ -32218,9 +32113,6 @@ glaciological
 glaciologist
 glaciology
 glacis
-glacé
-glacéed
-glacéing
 glad
 gladden
 gladdened
@@ -33981,8 +33873,6 @@ habituated
 habituating
 habituation
 habitude
-habitué
-habitué's
 hacek
 hachure
 hacienda
@@ -39168,8 +39058,6 @@ ingulf
 ingurgitate
 ingurgitated
 ingurgitating
-ingénue
-ingénue's
 inhabit
 inhabitability
 inhabitable
@@ -40966,8 +40854,6 @@ jailing
 jakes
 jakeses
 jalap
-jalapeño
-jalapeño's
 jalopies
 jalopy
 jalousie
@@ -41004,8 +40890,6 @@ japery
 japing
 japonica
 jar
-jardinière
-jardinière's
 jarful
 jargon
 jargonistic
@@ -41945,8 +41829,6 @@ kind
 kinda
 kinder
 kindergarten
-kindergärtner
-kindergärtner's
 kindest
 kindhearted
 kindheartedly
@@ -42257,9 +42139,6 @@ krugerrand
 kruller
 krummhorn
 krypton
-króna
-króna's
-krónur
 kuchen
 kudo
 kudu
@@ -42294,7 +42173,6 @@ kylix
 kymograph
 kyphoses
 kyphosis
-kümmel
 l
 la
 laager
@@ -44011,8 +43889,6 @@ littleness
 littler
 littlest
 littoral
-littérateur
-littérateur's
 liturgical
 liturgically
 liturgics
@@ -44919,8 +44795,6 @@ mackintosh
 mackintoshes
 mackle
 macle
-macramé
-macramé's
 macro
 macrobiotic
 macrocephalic
@@ -44955,7 +44829,6 @@ maculated
 maculating
 maculation
 macule
-macédoine
 mad
 madam
 madame
@@ -44984,8 +44857,6 @@ madrigal
 madrigalian
 madrigalist
 madrone
-madroña
-madroño
 maduro
 madwoman
 madwomen
@@ -45184,7 +45055,6 @@ maladroit
 maladroitly
 maladroitness
 malady
-malagueña
 malaise
 malamute
 malapert
@@ -45487,7 +45357,6 @@ manor
 manorial
 manorialism
 manpower
-manqué
 manrope
 mansard
 manse
@@ -45544,8 +45413,6 @@ manyfold
 manyplies
 manzanilla
 manzanita
-manège
-manège's
 map
 maple
 mapmaker
@@ -45918,8 +45785,6 @@ matier
 matiest
 matin
 mating
-matinée
-matinée's
 matrass
 matresfamilias
 matriarch
@@ -45984,8 +45849,6 @@ matzo
 matzoh
 matzot
 matzoth
-matériel
-matériel's
 maudlin
 mauger
 maul
@@ -46063,8 +45926,6 @@ mazuma
 mazurka
 mazy
 mazzard
-mañana
-mañana's
 mb
 me
 mead
@@ -47243,7 +47104,6 @@ millionth
 millipede
 millisecond
 millivolt
-millième
 millpond
 millrace
 millrun
@@ -49337,12 +49197,6 @@ myxoma
 myxomatoses
 myxomatosis
 myxomycete
-mésalliance
-métier
-métier's
-métisses
-mêlée
-mêlée's
 n
 naan
 nab
@@ -49388,8 +49242,6 @@ naivenesses
 naiver
 naivest
 naivety
-naiveté
-naiveté's
 naked
 nakedly
 nakedness
@@ -51284,7 +51136,6 @@ nymphomaniacal
 nystagmic
 nystagmus
 nystatin
-née
 o
 oaf
 oafish
@@ -51902,8 +51753,6 @@ olla
 ologies
 ology
 oloroso
-olé
-olé's
 om
 omasa
 omasum
@@ -52858,7 +52707,6 @@ outrode
 outrun
 outrunning
 outrush
-outré
 outsail
 outsailed
 outsailing
@@ -54611,7 +54459,6 @@ passphrase
 passport
 passus
 password
-passé
 past
 pasta
 paste
@@ -55213,7 +55060,6 @@ pensively
 pensiveness
 penstemon
 penstock
-pensée
 pent
 pentachlorophenol
 pentacle
@@ -56487,7 +56333,6 @@ pietistic
 pietistical
 pietistically
 piety
-pietà
 piezochemistry
 piezoelectric
 piezoelectrical
@@ -56766,7 +56611,6 @@ piratic
 piratical
 piratically
 pirating
-piraña
 pirn
 pirog
 pirogi
@@ -56884,10 +56728,6 @@ pizzazzes
 pizzeria
 pizzicati
 pizzicato
-piñata
-piñata's
-piñon
-piñon's
 placable
 placard
 placarded
@@ -57433,7 +57273,6 @@ podcasting
 podded
 podding
 poddy
-podestà
 podiatric
 podiatrist
 podiatry
@@ -57986,8 +57825,6 @@ porting
 portion
 portioned
 portioning
-portière
-portière's
 portlier
 portliest
 portliness
@@ -60008,9 +59845,6 @@ protuberancy
 protuberant
 protuberantly
 protuberate
-protégé
-protégé's
-protégée
 proud
 prouder
 proudest
@@ -60117,10 +59951,6 @@ pry
 prying
 pryingly
 prytaneum
-précis
-précis's
-précised
-précising
 psalm
 psalmbook
 psalmist
@@ -60816,7 +60646,6 @@ pyxes
 pyxidium
 pyxie
 pzazz
-père
 q
 qadi
 qi
@@ -62265,7 +62094,6 @@ rechartering
 recheck
 rechecked
 rechecking
-recherché
 rechristen
 rechristened
 rechristening
@@ -64007,7 +63835,6 @@ repossessed
 repossesses
 repossessing
 repossession
-repoussé
 repp
 reprehend
 reprehended
@@ -64761,7 +64588,6 @@ retrospecting
 retrospection
 retrospective
 retrospectively
-retroussé
 retroversion
 retrovirus
 retroviruses
@@ -65357,7 +65183,6 @@ riskiness
 risking
 risky
 risotto
-risqué
 rissole
 ristra
 ritard
@@ -65786,8 +65611,6 @@ routinize
 routinized
 routinizing
 roux
-roué
-roué's
 rove
 roved
 rover
@@ -66078,9 +65901,6 @@ ruttish
 rutty
 rya
 rye
-régisseur
-réseau
-réseaux
 s
 sabadilla
 sabayon
@@ -66769,10 +66589,6 @@ saurischian
 sauropod
 saury
 sausage
-sauté
-sauté's
-sautéed
-sautéing
 savable
 savage
 savaged
@@ -70585,8 +70401,6 @@ smuttier
 smuttiest
 smuttiness
 smutty
-smörgåsbord
-smörgåsbord's
 snack
 snacked
 snacking
@@ -70998,15 +70812,11 @@ soggiest
 soggily
 sogginess
 soggy
-soigné
-soignée
 soil
 soilage
 soiled
 soiling
 soilure
-soirée
-soirée's
 sojourn
 sojourned
 sojourner
@@ -71343,8 +71153,6 @@ sottishly
 sou
 soubise
 soubrette
-soufflé
-soufflé's
 sough
 soughed
 soughing
@@ -71387,8 +71195,6 @@ soupiest
 souping
 soupspoon
 soupy
-soupçon
-soupçon's
 sour
 sourball
 source
@@ -75727,8 +75533,6 @@ systolic
 syzygial
 syzygies
 syzygy
-séance
-séance's
 t
 ta
 tab
@@ -76671,7 +76475,6 @@ teniasis
 tenner
 tennis
 tenno
-tenné
 tenon
 tenoned
 tenoner
@@ -78324,7 +78127,6 @@ touchscreen
 touchstone
 touchwood
 touchy
-touché
 tough
 toughed
 toughen
@@ -79551,7 +79353,6 @@ tryst
 trysted
 tryster
 trysting
-très
 tsarevitch
 tsarevna
 tsarists
@@ -79805,7 +79606,6 @@ tutu
 tux
 tuxedo
 tuxes
-tuyère
 twaddle
 twaddled
 twaddler
@@ -83201,7 +83001,6 @@ vaporware
 vapory
 vaquero
 vara
-vargueño
 varia
 variability
 variable
@@ -83798,8 +83597,6 @@ victualage
 victualed
 victualer
 victualing
-vicuña
-vicuña's
 vide
 videlicet
 video
@@ -84208,7 +84005,6 @@ voided
 voider
 voiding
 voile
-voilà
 voiture
 volant
 volar
@@ -86766,18 +86562,3 @@ zymoses
 zymosis
 zymotic
 zymurgy
-éclair
-éclair's
-éclaircissement
-éclat
-éclat's
-élan
-élan's
-émigré
-émigré's
-épée
-épée's
-étagère
-étude
-étude's
-étui

@@ -1311,22 +1311,21 @@ export default function EtymologyGraph({ initialWord, language = 'Korean', onWor
       if (label.endsWith('-')) {
         // Use cache for prefix validation (instant)
         const cachedResult = existsInCache(label);
-        if (cachedResult !== null) {
-          if (cachedResult) {
-            loadWord(label, node.id, node.id);
-            onWordSelect?.(label);
-          } else {
-            setErrorMessage(`"${label}"은(는) 사전에 없는 접두사입니다`);
-          }
+        if (cachedResult === true) {
+          // Known prefix - search as-is
+          loadWord(label, node.id, node.id);
+          onWordSelect?.(label);
           return;
         }
-        // Fallback to API if cache not loaded
-        api.wordExists(label).then((exists) => {
+        // Not a known prefix - fallback: remove hyphen and check words.txt
+        // This handles stems like "port-" -> "port"
+        const wordWithoutHyphen = label.replace(/-$/, '');
+        api.wordExists(wordWithoutHyphen).then((exists) => {
           if (exists) {
-            loadWord(label, node.id, node.id);
-            onWordSelect?.(label);
+            loadWord(wordWithoutHyphen, node.id, node.id);
+            onWordSelect?.(wordWithoutHyphen);
           } else {
-            setErrorMessage(`"${label}"은(는) 사전에 없는 접두사입니다`);
+            setErrorMessage(`"${label}"은(는) 사전에 없는 접두사/어간입니다`);
           }
         });
         return;

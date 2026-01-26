@@ -1,71 +1,3 @@
-# TODO: 프론트엔드 잘못된 접사 필터링
-
-## 배경
-
-- LLM 프롬프트 개선 완료 (`llm-proxy/internal/llm/prompts.go:28-34`)
-- 하지만 여전히 일부 단어에서 잘못된 접사 생성됨
-  - 예: `interview` → `inter-` + `vid-` + `-ew` (❌ `-ew`는 가짜 접미사)
-  - 예: `renew` → `re-` + `nov-` + `-ate` (❌ 올바른 분석: `re-` + `new`)
-
-## 해결 방안
-
-프론트엔드에서 유효한 접사만 표시하도록 필터링 로직 추가
-
-### 수정 대상 파일
-
-- `frontend/components/EtymologyCard.tsx` (줄 41, 48)
-- `frontend/components/EtymologyGraph.tsx` (줄 531, 631, 695, 1572, 1574)
-
-### 구현 계획
-
-1. **접사 검증 유틸리티 생성**: `frontend/lib/affix-validator.ts`
-   - Morpheme Dataset에서 유효한 접두사/접미사 목록 추출
-   - `isValidAffix(part: string): boolean` 함수 구현
-   - `filterValidComponents(components)` 헬퍼 함수 구현
-
-2. **Morpheme Dataset 활용**
-   - GitHub: https://github.com/colingoldberg/morphemes
-   - JSON: https://raw.githubusercontent.com/colingoldberg/morphemes/master/data/morphemes.json
-   - 접두사: 3,034개, 접미사: 850개
-   - 데이터 구조:
-     ```json
-     {
-       "-able": {
-         "forms": [{ "root": "-able", "loc": "suffix" }],
-         "meaning": ["able to", "capable of being"],
-         "examples": ["capable", "agreeable"]
-       }
-     }
-     ```
-
-3. **접두사/접미사 추출 스크립트**
-
-   ```bash
-   # 접미사 목록 추출
-   curl -s "https://raw.githubusercontent.com/colingoldberg/morphemes/master/data/morphemes.json" | \
-     jq '[to_entries[] | .value.forms[] | select(.loc == "suffix") | .root] | unique'
-
-   # 접두사 목록 추출
-   curl -s "https://raw.githubusercontent.com/colingoldberg/morphemes/master/data/morphemes.json" | \
-     jq '[to_entries[] | .value.forms[] | select(.loc == "prefix") | .root] | unique'
-   ```
-
-4. **기존 필터링 로직 수정**
-   현재: `components.filter(c => c.part !== '-')`
-   변경: `filterValidComponents(components)`
-
-## 검증 테스트
-
-- `interview` 검색 → `-ew` 접미사가 표시되지 않아야 함
-- `review` 검색 → `re-` + `view`만 표시되어야 함
-- `preview` 검색 → `pre-` + `view`만 표시되어야 함
-
-# DB 칼럼 추가
-
-word verified
-
----
-
 # TODO: 링크 파티클 애니메이션 멈춤 현상
 
 ## 문제
@@ -76,35 +8,43 @@ word verified
 ## 시도한 해결책 (모두 실패)
 
 ### 1. cooldownTicks/cooldownTime을 Infinity로 설정
+
 ```tsx
-cooldownTicks={Infinity}
-cooldownTime={Infinity}
+cooldownTicks = { Infinity };
+cooldownTime = { Infinity };
 ```
+
 - 결과: ❌ 여전히 멈춤
 
 ### 2. d3AlphaDecay/d3AlphaMin 조정
+
 ```tsx
 d3AlphaDecay={0.02}  // 기존 0.1에서 감소
 d3AlphaMin={0.001}   // 추가
 warmupTicks={0}      // 기존 20에서 감소
 ```
+
 - 결과: ❌ 여전히 멈춤
 
 ### 3. 상태 업데이트 후 resumeAnimation() 호출
+
 ```tsx
 requestAnimationFrame(() => {
   graphRef.current?.resumeAnimation?.();
 });
 ```
+
 - loadWord, handleSelectRevision, derivative 로딩 함수에 추가
 - 결과: ❌ 여전히 멈춤
 
 ### 4. resumeAnimation() 대신 d3ReheatSimulation() 호출
+
 ```tsx
 requestAnimationFrame(() => {
   graphRef.current?.d3ReheatSimulation?.();
 });
 ```
+
 - 결과: ❌ 여전히 멈춤
 
 ## 현재 상태
@@ -132,3 +72,46 @@ requestAnimationFrame(() => {
   ```
 - `d3ReheatSimulation()` 호출 제거
 - 파티클 멈춤 현상은 미해결 상태로 유지
+
+---
+
+# TODO: 한국어 발음으로 영단어 검색 시 후보 제안 기능
+
+## 요구사항
+
+- 사용자가 한국어 발음으로 검색 (예: "월드")
+- LLM이 가능한 영단어 후보를 제안 (예: "world", "word")
+- 모달로 후보 목록 표시
+- 후보 클릭 시 해당 단어 바로 검색
+
+## 구현 방향
+
+1. **프론트엔드**
+   - 검색어가 한글인지 감지
+   - 한글이면 LLM에 후보 요청
+   - 후보 목록을 모달로 표시
+   - 선택 시 해당 영단어로 검색
+
+2. **백엔드 (LLM Proxy)**
+   - 새 엔드포인트: `POST /api/suggest-words`
+   - 입력: 한국어 발음
+   - 출력: 영단어 후보 목록 (최대 5개)
+
+3. **프롬프트 예시**
+   ```
+   사용자가 "월드"라고 검색했습니다.
+   이 발음과 유사한 영어 단어 후보를 최대 5개 제안해주세요.
+   JSON 형식: ["word1", "word2", ...]
+   ```
+
+## 고려사항
+
+- 한글 감지: 정규식 `/[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/`
+- 캐싱: 자주 검색되는 한글 발음은 Redis에 캐싱
+- UX: 모달 대신 자동완성 드롭다운도 고려 가능
+
+---
+
+# TODO: 유저 히스토리 내역은 redis에 가지고만 있다가 사용자가 없는 새벽시간에 bulk insert?
+
+단어 중복은 없애고 db insert 할 때 검색한 단어 list를 가지고 있게

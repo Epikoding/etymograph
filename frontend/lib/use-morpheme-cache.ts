@@ -55,8 +55,9 @@ export function useMorphemeCache() {
    * @param term - The term to check (suffix: -er, prefix: un-, word: teacher)
    * @returns
    *   - `true` if the suffix/prefix exists in cache
-   *   - `false` if the suffix/prefix does NOT exist in cache
+   *   - `false` if the suffix does NOT exist in cache
    *   - `null` if term is a regular word (should use API) or cache not loaded
+   *          or if prefix not in cache (fallback to API with hyphen removed)
    */
   const existsInCache = (term: string): boolean | null => {
     if (!morphemeCache) return null; // Cache not loaded yet
@@ -69,8 +70,13 @@ export function useMorphemeCache() {
     }
 
     // Prefix: ends with "-" (e.g., "un-", "re-")
+    // If not in cache, return null to fallback to API (with hyphen removed)
     if (normalized.endsWith('-')) {
-      return morphemeCache.prefixes.has(normalized);
+      if (morphemeCache.prefixes.has(normalized)) {
+        return true;
+      }
+      // Not a known prefix - fallback to API validation
+      return null;
     }
 
     // Regular word: return null to indicate API should be used

@@ -870,7 +870,147 @@ CREATE TABLE user_etymology_preferences (
 GET /api/morphemes
 
 {
-  "suffixes": ["-er", "-ing", "-tion", ...],  // 671개
-  "prefixes": ["un-", "re-", "pre-", ...]     // 1,626개
+  "suffixes": ["-er", "-ing", "-tion", ...],  // 173개
+  "prefixes": ["un-", "re-", "pre-", ...]     // 143개
 }
 ```
+
+---
+
+## 2026-01-26: words 테이블 레거시 컬럼 제거
+
+**상황**: `etymology_revisions` 테이블이 1:N 관계로 어원 데이터를 관리하게 되면서 `words` 테이블의 `etymology`, `etymology_prev` 컬럼이 불필요해짐.
+
+**선택지**:
+
+1. 레거시 컬럼 유지 (혹시 모를 롤백 대비)
+2. 레거시 컬럼 삭제 (스키마 단순화)
+
+**결정**: Option 2 - 레거시 컬럼 삭제
+
+**이유**:
+
+1. **데이터 중복 제거**: 모든 어원 데이터가 `etymology_revisions`에 완전히 이관됨
+2. **스키마 단순화**: 혼란 방지 및 유지보수 용이
+3. **이관 검증 완료**: 전체 87,002개 단어가 revision 테이블에 존재 확인
+
+**마이그레이션**:
+
+```sql
+-- api-go/migrations/002_drop_legacy_etymology_columns.sql
+ALTER TABLE words DROP COLUMN IF EXISTS etymology;
+ALTER TABLE words DROP COLUMN IF EXISTS etymology_prev;
+DROP INDEX IF EXISTS idx_words_etymology_null;
+```
+
+---
+
+## 2026-01-26: 접사(Affix) 화이트리스트 정리
+
+**상황**: `etymology_revisions.etymology->'origin'->'components'`에서 추출한 접사 목록에 노이즈(단어 어간, 라틴어 원문, 복합어 요소 등)가 다수 포함됨.
+
+**문제 발견**:
+
+| 유형 | 예시 | 개수 |
+|------|------|------|
+| 라틴어/그리스어 원문 | lāt-, -āre, grā- | 다수 |
+| 단어 어간 | mong-, tain-, view- | 1,786개 |
+| 복합어 요소 | foot-, land-, water- | 1,931개 |
+| 잘못된 형식 | -ew, -eview | 소수 |
+
+**결정**: 언어학적으로 유효한 접사만 화이트리스트로 유지
+
+**화이트리스트 기준**:
+
+1. **접미사 (173개)**: 단어의 품사나 의미를 변화시키는 진정한 접미사
+   - 명사화: -tion, -ment, -ness, -ity, -er, -or
+   - 형용사화: -able, -ible, -ful, -less, -ous, -ive
+   - 동사화: -ize, -ify, -ate, -en
+   - 부사화: -ly
+   - 과학/의학: -logy, -graphy, -itis, -ectomy
+
+2. **접두사 (143개)**: 단어의 의미를 변화시키는 진정한 접두사
+   - 부정: un-, in-, im-, il-, ir-, dis-, non-
+   - 반복: re-
+   - 방향: pre-, post-, ex-, trans-, inter-
+   - 수량: uni-, bi-, tri-, multi-, poly-
+   - 크기: micro-, macro-, mini-, mega-
+   - **생산적 복합 접두사 (8개)**: back-, out-, up-, down-, fore-, after-, side-, cross-
+
+**생산적 복합 접두사 포함 이유**:
+
+| 접두사 | 생산성 예시 |
+|--------|-------------|
+| back- | backfire, background, backup, backtrack |
+| out- | outcome, outline, output, outperform |
+| up- | update, upgrade, upload, uprising |
+| down- | download, downfall, downsize, downstream |
+| fore- | forecast, foreground, foresee, forehead |
+| after- | aftermath, afterthought, afterlife, afterglow |
+| side- | sideline, sidetrack, sidestep, sidebar |
+| cross- | crossover, crossroads, crossfire, crosscheck |
+
+**정리 결과**:
+
+| 항목 | 이전 | 이후 |
+|------|------|------|
+| suffixes.txt | 927개 | **173개** |
+| prefixes.txt | 3,090개 | **143개** |
+| DB 접사 레코드 | 4,017개 | **316개** (3,717개 삭제) |
+
+**etymology_revisions 컴포넌트 정리**:
+
+노이즈 접사가 포함된 etymology JSONB에서 해당 컴포넌트 제거:
+
+```sql
+UPDATE etymology_revisions
+SET etymology = jsonb_set(
+  etymology,
+  '{origin,components}',
+  (SELECT jsonb_agg(comp)
+   FROM jsonb_array_elements(etymology->'origin'->'components') comp
+   WHERE comp->>'part' IN (SELECT affix FROM valid_affixes)
+      OR (comp->>'part' NOT LIKE '-%' AND comp->>'part' NOT LIKE '%-')
+  )
+)
+WHERE etymology->'origin'->'components' IS NOT NULL;
+```
+
+**영향 레코드**: 68,299개 → 62,868개 (비어있는 컴포넌트 23,790개)
+
+**백업 테이블**: `etymology_revisions_backup` (정리 전 전체 백업)
+
+---
+
+## 2026-01-26: 복합어 요소 vs 접사 구분 기준
+
+**상황**: `foot-`, `land-`, `water-` 같은 복합어 요소를 접사로 취급할지 결정 필요.
+
+**선택지**:
+
+1. 모든 하이픈 붙은 형태소를 접사로 취급
+2. 언어학적 접사만 유지, 복합어 요소는 제거
+3. 생산적 복합어 요소만 선별 유지
+
+**결정**: Option 2 + 예외적으로 8개 생산적 복합 접두사 포함
+
+**언어학적 구분**:
+
+| 유형 | 정의 | 예시 | 취급 |
+|------|------|------|------|
+| 접사 (Affix) | 단독으로 사용 불가, 다른 단어에 붙어 문법적/의미적 변화 | un-, re-, -tion, -able | ✓ 유지 |
+| 복합어 요소 | 단독 단어로 존재, 다른 단어와 결합 | foot-, land-, water- | ✗ 제거 |
+| 어근 (Root) | 단어의 핵심 의미를 담은 형태소 | view-, tain-, ject- | ✗ 제거 |
+| 생산적 복합 접두사 | 단독 단어이지만 접두사처럼 광범위하게 사용 | back-, out-, up- | ✓ 유지 |
+
+**생산적 복합 접두사 선정 기준**:
+
+1. 5개 이상의 다른 어근과 결합 가능
+2. 일관된 의미 변화 제공 (방향, 위치, 시간 등)
+3. 현대 영어에서 활발히 사용
+
+**이유**:
+
+1. **어원 학습 목적**: 접사를 이해하면 새로운 단어의 의미를 추론할 수 있음
+2. **복합어 요소는 별도 처리**: `footprint`의 `foot-`는 그냥 "foot + print"로 이해하면 됨
+3. **LLM 프롬프트 정확성**: 접사 목록이 정확해야 LLM이 더 나은 어원 분석 제공
