@@ -313,11 +313,12 @@ function HomeContent() {
             </div>
           </div>
 
-          {/* Disclaimer */}
-          <p className="mt-8 text-xs text-slate-500">
-            AI 기반 어원 분석으로 일부 정보가 부정확할 수 있습니다.
-          </p>
         </div>
+
+        {/* Disclaimer - fixed at bottom */}
+        <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-slate-500">
+          AI 기반 어원 분석으로 일부 정보가 부정확할 수 있습니다.
+        </p>
       </div>
 
       {/* Graph View */}
