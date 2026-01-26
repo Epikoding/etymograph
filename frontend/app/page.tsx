@@ -183,7 +183,7 @@ function HomeContent() {
           {/* Logo & Title */}
           <div className="text-center mb-8">
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 tracking-tight">
-              Etymo<span className="text-indigo-400">Graph</span>
+              Word<span className="text-indigo-400">Tree</span>
             </h1>
             <p className="text-lg md:text-xl text-slate-300 max-w-lg mx-auto">
               어원을 통해 단어 사이의 숨겨진 연결고리를 발견하세요
@@ -312,6 +312,11 @@ function HomeContent() {
               <span className="text-slate-300 text-sm">동의어</span>
             </div>
           </div>
+
+          {/* Disclaimer */}
+          <p className="mt-8 text-xs text-slate-500">
+            AI 기반 어원 분석으로 일부 정보가 부정확할 수 있습니다.
+          </p>
         </div>
       </div>
 

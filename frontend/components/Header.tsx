@@ -47,7 +47,7 @@ export default function Header() {
           <div className="flex justify-between items-center h-16">
             <button onClick={handleLogoClick} className="flex items-center space-x-2">
               <span className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                EtymoGraph
+                WordTree
               </span>
             </button>
 
