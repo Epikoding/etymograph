@@ -97,7 +97,7 @@ func main() {
 	})
 
 	// Auth routes (public)
-	authGroup := r.Group("/auth")
+	authGroup := r.Group("/api/auth")
 	{
 		authGroup.GET("/google", authHandler.GoogleAuth)
 		authGroup.GET("/google/callback", authHandler.GoogleCallback)
