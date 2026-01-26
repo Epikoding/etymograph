@@ -4,7 +4,7 @@ import { AuthProvider } from '@/lib/auth-context';
 import Header from '@/components/Header';
 
 export const metadata: Metadata = {
-  title: 'EtymoGraph - Etymology Explorer',
+  title: 'EtymoGraph - Word Tree',
   description: 'Explore the origins and connections of English words',
 };
 

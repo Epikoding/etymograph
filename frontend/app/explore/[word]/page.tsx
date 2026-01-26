@@ -123,7 +123,7 @@ export default function ExplorePage() {
       {/* Session Info */}
       <div className="bg-white rounded-xl shadow-sm border p-4 mb-6">
         <h1 className="text-xl font-bold text-gray-900">
-          {session?.name || 'Etymology Exploration'}
+          {session?.name || 'Word Tree'}
         </h1>
         <p className="text-sm text-gray-500">
           {session?.words.length || 0} words explored

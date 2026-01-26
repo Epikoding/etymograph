@@ -11,7 +11,7 @@ export default function EtymologyCard({ etymology }: EtymologyCardProps) {
   if (!etymology) {
     return (
       <div className="p-6 text-center text-gray-500">
-        No etymology information available yet.
+        No word tree information available yet.
       </div>
     );
   }
