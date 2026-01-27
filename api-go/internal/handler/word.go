@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -700,22 +701,17 @@ func filterDerivativesInPlace(word string, etymology map[string]interface{}) {
 	}
 }
 
-// saveSearchHistory saves a search to the user's history
+// saveSearchHistory saves a search to Redis history buffer
+// The buffer will be flushed to DB periodically by a CronJob
 func (h *WordHandler) saveSearchHistory(userID int64, word string, language string) {
 	if language == "" {
 		language = "Korean"
 	}
 	langKey := getLanguageKey(language)
 
-	history := model.SearchHistory{
-		UserID:     userID,
-		Word:       word,
-		Language:   langKey,
-		SearchedAt: time.Now(),
-	}
-
-	if err := h.db.Create(&history).Error; err != nil {
-		log.Printf("Failed to save search history: %v", err)
+	ctx := context.Background()
+	if err := h.cache.AddToHistory(ctx, userID, word, langKey); err != nil {
+		log.Printf("Failed to save search history to Redis: %v", err)
 	}
 }
 

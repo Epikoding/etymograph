@@ -29,6 +29,7 @@ func Migrate(db *gorm.DB) error {
 		&model.User{},
 		&model.RefreshToken{},
 		&model.SearchHistory{},
+		&model.SearchHistoryDaily{},
 		&model.ErrorReport{},
 		&model.EtymologyRevision{},
 		&model.UserEtymologyPreference{},

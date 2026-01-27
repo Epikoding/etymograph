@@ -73,6 +73,7 @@ Frontend (Next.js:3000) → API (Go:4000) → LLM Proxy (Go:8081) → Gemini/Oll
 - **etymology JSON 구조**: `{ "ko": {...}, "ja": {...} }` 형태로 다국어 지원
 - **접두사/접미사 지원**: dash(-)로 접사 구분 (`-er` = 접미사, `un-` = 접두사)
 - **다중 버전 시스템**: 단어당 최대 3개 어원 버전 저장. `etymology_revisions` 테이블에서 관리. 로그인 사용자는 선호 버전 선택 가능
+- **검색 히스토리 버퍼링**: Redis ZSET으로 검색어 버퍼링 → K8s CronJob으로 매시간 DB 일괄 저장. 사용자가 히스토리 조회 시 on-demand flush
 
 ## Project Structure
 
@@ -80,14 +81,15 @@ Frontend (Next.js:3000) → API (Go:4000) → LLM Proxy (Go:8081) → Gemini/Oll
 etymograph/
 ├── api-go/           # Go API 서버
 │   ├── cmd/
-│   │   ├── server/   # main.go 진입점
-│   │   └── seed/     # 단어 시드 CLI
+│   │   ├── server/       # main.go 진입점
+│   │   ├── seed/         # 단어 시드 CLI
+│   │   └── history-flush/# 검색 히스토리 Redis→DB 일괄 저장 CLI
 │   ├── internal/
 │   │   ├── auth/     # Google OAuth, JWT 토큰 관리
 │   │   ├── cache/    # Redis 캐시 클라이언트
 │   │   ├── handler/  # HTTP 핸들러 (word, fill, session, export, auth, history)
 │   │   ├── middleware/ # 인증 미들웨어
-│   │   ├── model/    # GORM 모델 (Word, EtymologyRevision, UserEtymologyPreference, Session, User, SearchHistory)
+│   │   ├── model/    # GORM 모델 (Word, EtymologyRevision, UserEtymologyPreference, Session, User, SearchHistoryDaily)
 │   │   ├── client/   # LLM Proxy 클라이언트
 │   │   └── validator/# 단어 유효성 검증
 │   └── data/         # words.txt, priority_words.txt
@@ -103,6 +105,7 @@ etymograph/
 │   └── types/        # word.ts (Etymology), auth.ts (User, History)
 ├── rate-limiter/     # Token bucket rate limiter
 └── k8s/              # Kubernetes manifests
+    └── jobs/         # CronJob (history-flush)
 ```
 
 ## API Endpoints
@@ -142,11 +145,16 @@ etymograph/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | /api/history | 검색 히스토리 조회 (페이지네이션) |
+| GET | /api/history | 검색 히스토리 조회 (Redis flush 후 DB에서 조회) |
 | GET | /api/history/dates | 날짜별 히스토리 요약 목록 |
 | GET | /api/history/dates/:date | 특정 날짜 검색어 목록 (YYYY-MM-DD) |
-| DELETE | /api/history/:id | 특정 히스토리 삭제 |
+| DELETE | /api/history/words/:word | 특정 단어 삭제 (JSONB에서 제거) |
 | DELETE | /api/history | 전체 히스토리 삭제 |
+
+**히스토리 저장 흐름**:
+1. 단어 검색 시 → Redis ZSET에 저장 (`history:{userID}` 키, score=timestamp)
+2. 사용자가 히스토리 조회 시 → on-demand flush (Redis → DB)
+3. K8s CronJob이 매시간 → 전체 유저 일괄 flush
 
 ## Environment Variables
 
@@ -224,7 +232,9 @@ curl -X POST "http://localhost:4000/api/words/fill-etymology/stop"
 
 접두사/접미사 검색 시 전용 JSON 스키마 사용 (examples, relatedSuffixes/relatedPrefixes 등)
 
-## Redis 캐시 사용법
+## Redis 사용법
+
+### 어원 캐시
 
 ```bash
 # 캐시 확인
@@ -235,4 +245,20 @@ docker exec etymograph-redis-1 redis-cli DEL "teacher:ko"
 
 # 모든 캐시 키 목록
 docker exec etymograph-redis-1 redis-cli KEYS "*"
+```
+
+### 검색 히스토리 버퍼
+
+```bash
+# 특정 유저의 히스토리 버퍼 확인 (ZSET)
+docker exec etymograph-redis-1 redis-cli ZRANGE "history:1" 0 -1 WITHSCORES
+
+# 활성 유저 목록 확인 (SET)
+docker exec etymograph-redis-1 redis-cli SMEMBERS "history:active"
+
+# 히스토리 수동 flush (dry-run)
+docker compose exec api ./history-flush --dry-run
+
+# 히스토리 수동 flush (실제 실행)
+docker compose exec api ./history-flush
 ```

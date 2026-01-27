@@ -8,10 +8,11 @@ COPY go.mod go.sum* ./
 # Copy source
 COPY . .
 
-# Download dependencies and build both binaries
+# Download dependencies and build binaries
 RUN go mod tidy && \
     CGO_ENABLED=0 GOOS=linux go build -o /api cmd/server/main.go && \
-    CGO_ENABLED=0 GOOS=linux go build -o /seed cmd/seed/main.go
+    CGO_ENABLED=0 GOOS=linux go build -o /seed cmd/seed/main.go && \
+    CGO_ENABLED=0 GOOS=linux go build -o /history-flush cmd/history-flush/main.go
 
 # Runtime
 FROM alpine:3.19
@@ -22,6 +23,7 @@ WORKDIR /app
 
 COPY --from=builder /api .
 COPY --from=builder /seed .
+COPY --from=builder /history-flush .
 COPY --from=builder /app/data ./data
 
 EXPOSE 4000

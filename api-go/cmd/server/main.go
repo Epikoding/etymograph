@@ -71,7 +71,7 @@ func main() {
 	sessionHandler := handler.NewSessionHandler(db)
 	exportHandler := handler.NewExportHandler(db)
 	authHandler := handler.NewAuthHandler(db, cfg.JWTSecret, googleConfig, cfg.FrontendURL)
-	historyHandler := handler.NewHistoryHandler(db)
+	historyHandler := handler.NewHistoryHandler(db, redisCache)
 	fillHandler := handler.NewFillHandler(db, redisCache, cfg.LLMProxyURL)
 	errorReportHandler := handler.NewErrorReportHandler(db)
 	adminHandler := handler.NewAdminHandler(db)

@@ -35,6 +35,9 @@ resources:
   - ollama/statefulset.yaml
   - ollama/service.yaml
 
+  # Jobs
+  - jobs/history-flush-cronjob.yaml
+
   # Ingress
   - ingress/traefik.yaml
 

@@ -982,6 +982,86 @@ WHERE etymology->'origin'->'components' IS NOT NULL;
 
 ---
 
+## 2026-01-27: 검색 히스토리 Redis 버퍼링 + 배치 처리
+
+**상황**: 기존 검색 히스토리는 단어 검색 시마다 PostgreSQL에 직접 INSERT하는 방식. DB 부하 및 중복 저장 문제.
+
+**선택지**:
+
+1. 현재 방식 유지 (매 검색마다 DB INSERT)
+2. Redis ZSET 버퍼링 + 주기적 배치 flush
+3. 메시지 큐 (Kafka/RabbitMQ) 기반 비동기 처리
+
+**결정**: Option 2 - Redis ZSET 버퍼링 + K8s CronJob 배치 처리
+
+**이유**:
+
+1. **DB 부하 감소**: 검색마다 INSERT 대신 Redis에 버퍼링
+2. **자동 중복 제거**: ZSET의 특성으로 같은 단어 재검색 시 score(timestamp)만 갱신
+3. **간단한 아키텍처**: 별도 메시지 큐 없이 Redis + CronJob으로 구현
+4. **k3s 친화적**: 상주 서버 없이 CronJob으로 배치 처리
+
+**새 아키텍처**:
+
+```
+검색 → Redis ZSET (history:{userId}) → K8s CronJob (매시간) → PostgreSQL
+                    ↓
+        history:active SET (활성 유저 추적)
+```
+
+**Redis 자료구조**:
+
+| 키 | 타입 | 용도 |
+|---|------|------|
+| `history:{userId}` | ZSET | 검색 기록 (member: word:language, score: timestamp) |
+| `history:active` | SET | flush 대상 유저 ID 목록 |
+
+**DB 스키마 변경**:
+
+```sql
+-- 기존: 1 row = 1 word
+CREATE TABLE search_histories (
+    id, user_id, word, language, searched_at
+);
+
+-- 변경: 1 row = 1 user + 1 date + N words (JSONB)
+CREATE TABLE search_history_daily (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    date DATE NOT NULL,
+    words JSONB NOT NULL DEFAULT '[]',
+    updated_at TIMESTAMP,
+    UNIQUE(user_id, date)
+);
+```
+
+**Flush 전략**:
+
+1. **CronJob**: 매시간 (`0 * * * *`) 전체 활성 유저 flush
+2. **On-demand**: 히스토리 조회 API 호출 시 해당 유저만 즉시 flush
+
+**구현 파일**:
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `api-go/internal/model/search_history_daily.go` | 새 모델 (JSONB words) |
+| `api-go/internal/cache/redis.go` | ZSET/SET 히스토리 버퍼 메서드 |
+| `api-go/internal/handler/word.go` | saveSearchHistory: DB → Redis |
+| `api-go/internal/handler/history.go` | flush 로직 + 새 테이블 쿼리 |
+| `api-go/cmd/history-flush/main.go` | 배치 flush CLI |
+| `k8s/jobs/history-flush-cronjob.yaml` | 매시간 CronJob |
+| `api-go/migrations/003_search_history_daily.sql` | 마이그레이션 스크립트 |
+
+**테스트 결과**:
+
+- Redis ZSET 저장 ✅
+- 중복 제거 (같은 단어 재검색 시 1개 유지) ✅
+- flush CLI 동작 ✅
+- DB UPSERT (날짜별 병합) ✅
+- Redis 정리 (flush 후 키 삭제) ✅
+
+---
+
 ## 2026-01-26: 복합어 요소 vs 접사 구분 기준
 
 **상황**: `foot-`, `land-`, `water-` 같은 복합어 요소를 접사로 취급할지 결정 필요.
