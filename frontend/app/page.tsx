@@ -316,8 +316,10 @@ function HomeContent() {
         </div>
 
         {/* Disclaimer - fixed at bottom */}
-        <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-slate-500">
-          AI 기반 어원 분석으로 일부 정보가 부정확할 수 있습니다.
+        <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-slate-400 z-20">
+          <span className="bg-slate-900/70 px-3 py-1 rounded-full">
+            AI 기반 어원 분석으로 일부 정보가 부정확할 수 있습니다.
+          </span>
         </p>
       </div>
 
