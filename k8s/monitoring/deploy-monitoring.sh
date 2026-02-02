@@ -155,7 +155,7 @@ echo "         접속 정보"
 echo "=========================================="
 echo ""
 echo "[Grafana]"
-echo "  Port-forward: kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring"
+echo "  Port-forward: kubectl port-forward svc/prometheus-grafana 3000:3000 -n monitoring"
 echo "  URL: http://localhost:3000"
 echo "  Username: admin"
 if [ -n "$GRAFANA_ADMIN_PASSWORD" ]; then

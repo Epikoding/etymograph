@@ -114,6 +114,6 @@ jobs:
 
           echo ""
           echo "=== Grafana Access ==="
-          echo "kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring"
+          echo "kubectl port-forward svc/prometheus-grafana 3000:3000 -n monitoring"
           echo "URL: http://localhost:3000"
           echo "Username: admin"
