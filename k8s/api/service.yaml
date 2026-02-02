@@ -3,10 +3,13 @@ kind: Service
 metadata:
   name: api
   namespace: etymograph
+  labels:
+    app: api
 spec:
   selector:
     app: api
   ports:
-    - port: 4000
+    - name: http
+      port: 4000
       targetPort: 4000
   type: ClusterIP

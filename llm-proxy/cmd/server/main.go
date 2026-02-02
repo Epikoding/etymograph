@@ -2,13 +2,65 @@ package main
 
 import (
 	"log"
+	"strconv"
+	"time"
 
 	"github.com/epikoding/etymograph/llm-proxy/internal/config"
 	"github.com/epikoding/etymograph/llm-proxy/internal/handler"
 	"github.com/epikoding/etymograph/llm-proxy/internal/llm"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+// Prometheus metrics
+var (
+	llmRequestsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "llm_requests_total",
+			Help: "Total number of LLM requests",
+		},
+		[]string{"endpoint", "status"},
+	)
+
+	llmRequestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "llm_request_duration_seconds",
+			Help:    "LLM request duration in seconds",
+			Buckets: []float64{0.5, 1, 2, 5, 10, 20, 30, 60},
+		},
+		[]string{"endpoint"},
+	)
+
+	llmTokensUsed = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "llm_tokens_used_total",
+			Help: "Total LLM tokens used (estimated)",
+		},
+		[]string{"type"},
+	)
+)
+
+// metricsMiddleware collects Prometheus metrics for each request
+func metricsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+
+		c.Next()
+
+		duration := time.Since(start).Seconds()
+		status := strconv.Itoa(c.Writer.Status())
+		endpoint := c.FullPath()
+		if endpoint == "" {
+			endpoint = "unknown"
+		}
+
+		llmRequestsTotal.WithLabelValues(endpoint, status).Inc()
+		llmRequestDuration.WithLabelValues(endpoint).Observe(duration)
+	}
+}
 
 func main() {
 	// Load .env file if exists
@@ -39,6 +91,12 @@ func main() {
 
 	// Setup router
 	r := gin.Default()
+
+	// Prometheus metrics middleware
+	r.Use(metricsMiddleware())
+
+	// Prometheus metrics endpoint
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {

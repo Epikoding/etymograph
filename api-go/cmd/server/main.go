@@ -15,6 +15,7 @@ import (
 	"github.com/etymograph/api/internal/middleware"
 	"github.com/etymograph/api/internal/validator"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -78,6 +79,12 @@ func main() {
 
 	// Setup router
 	r := gin.Default()
+
+	// Prometheus metrics middleware
+	r.Use(middleware.MetricsMiddleware())
+
+	// Prometheus metrics endpoint
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// CORS middleware
 	r.Use(func(c *gin.Context) {

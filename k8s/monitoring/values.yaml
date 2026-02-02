@@ -1,0 +1,140 @@
+# kube-prometheus-stack Helm values
+# 설치: helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring -f values.yaml
+#
+# 주의: 민감한 정보(SMTP, Grafana 비밀번호)는 .env 파일에서 관리합니다.
+# deploy-monitoring.sh가 .env를 읽어서 Secret을 생성합니다.
+
+# Grafana 설정
+grafana:
+  enabled: true
+  # adminPassword는 deploy-monitoring.sh에서 --set으로 주입
+  # 빈 값이면 자동 생성
+
+  # Ingress 비활성화 (port-forward로 접근)
+  ingress:
+    enabled: false
+
+  # 서비스 타입
+  service:
+    type: ClusterIP
+    port: 3000
+
+  # 기본 대시보드 활성화
+  defaultDashboardsEnabled: true
+  defaultDashboardsTimezone: Asia/Seoul
+
+  # 추가 데이터 소스 (Loki 등 나중에 추가 가능)
+  additionalDataSources: []
+
+# Prometheus 설정
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    # 메트릭 보존 기간 (deploy-monitoring.sh에서 --set으로 오버라이드 가능)
+    retention: 15d
+
+    # 스토리지 설정 (PVC 사용)
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path  # k3s 기본 StorageClass
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+    # 리소스 제한
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 250m
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+
+    # etymograph 네임스페이스의 ServiceMonitor 수집
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+
+    # PodMonitor도 모든 네임스페이스에서 수집
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+
+# Alertmanager 설정
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    # 별도 Secret에서 config 로드 (deploy-monitoring.sh에서 생성)
+    configSecret: alertmanager-config
+
+    # 스토리지 설정
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
+
+    # 리소스 제한
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 50m
+      limits:
+        memory: 256Mi
+        cpu: 200m
+
+# Node Exporter (노드 메트릭 수집)
+nodeExporter:
+  enabled: true
+
+# kube-state-metrics (k8s 리소스 메트릭)
+kubeStateMetrics:
+  enabled: true
+
+# 기본 알림 규칙 (CPU/메모리/디스크 등)
+defaultRules:
+  create: true
+  rules:
+    alertmanager: true
+    etcd: false  # k3s는 etcd 대신 SQLite 사용
+    configReloaders: true
+    general: true
+    k8s: true
+    kubeApiserverAvailability: true
+    kubeApiserverBurnrate: true
+    kubeApiserverHistogram: true
+    kubeApiserverSlos: true
+    kubeControllerManager: false  # k3s에서 접근 불가
+    kubelet: true
+    kubeProxy: false  # k3s에서 접근 불가
+    kubePrometheusGeneral: true
+    kubePrometheusNodeRecording: true
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    kubeScheduler: false  # k3s에서 접근 불가
+    kubeStateMetrics: true
+    network: true
+    node: true
+    nodeExporterAlerting: true
+    nodeExporterRecording: true
+    prometheus: true
+    prometheusOperator: true
+
+# Prometheus Operator
+prometheusOperator:
+  enabled: true
+
+  # Admission Webhooks
+  admissionWebhooks:
+    enabled: true
+    patch:
+      enabled: true

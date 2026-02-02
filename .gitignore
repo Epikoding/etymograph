@@ -53,5 +53,7 @@ CLAUDE.md
 
 # Kubernetes secrets (use secrets.yaml.example as template)
 k8s/base/secrets.yaml
+k8s/monitoring/alertmanager-secret.yaml
+k8s/monitoring/.env
 etymograph_data.sql
 etymograph_backup.sql

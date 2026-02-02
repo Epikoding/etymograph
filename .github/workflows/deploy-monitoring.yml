@@ -1,0 +1,119 @@
+name: Deploy Monitoring Stack
+
+on:
+  # 수동 트리거
+  workflow_dispatch:
+  # k8s/monitoring 변경 시 자동 트리거
+  push:
+    branches: [main]
+    paths:
+      - 'k8s/monitoring/**'
+      - '.github/workflows/deploy-monitoring.yml'
+
+jobs:
+  deploy-monitoring:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        run: |
+          if ! command -v helm &> /dev/null; then
+            curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          fi
+
+      - name: Add Helm repo
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+
+      - name: Create monitoring namespace
+        run: |
+          kubectl apply -f k8s/monitoring/namespace.yaml
+
+      - name: Create Alertmanager config secret
+        run: |
+          # Alertmanager config with Telegram
+          cat << 'EOF' > /tmp/alertmanager.yaml
+          global:
+            resolve_timeout: 5m
+
+          route:
+            group_by: ['alertname', 'namespace']
+            group_wait: 30s
+            group_interval: 5m
+            repeat_interval: 4h
+            receiver: 'telegram'
+            routes:
+              - match:
+                  severity: critical
+                receiver: 'telegram'
+                group_wait: 10s
+                repeat_interval: 1h
+
+          receivers:
+            - name: 'telegram'
+              telegram_configs:
+                - bot_token: '${{ secrets.TELEGRAM_BOT_TOKEN }}'
+                  chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+                  parse_mode: 'HTML'
+                  send_resolved: true
+                  message: |
+                    {{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }} <b>{{ .Status | toUpper }}</b>
+
+                    {{ range .Alerts }}
+                    <b>{{ .Labels.alertname }}</b>
+                    Severity: {{ .Labels.severity }}
+                    {{ if .Annotations.summary }}Summary: {{ .Annotations.summary }}{{ end }}
+                    {{ if .Annotations.description }}Description: {{ .Annotations.description }}{{ end }}
+                    {{ end }}
+
+          inhibit_rules:
+            - source_match:
+                severity: 'critical'
+              target_match:
+                severity: 'warning'
+              equal: ['alertname', 'namespace']
+          EOF
+
+          kubectl delete secret alertmanager-config -n monitoring --ignore-not-found
+          kubectl create secret generic alertmanager-config \
+            --from-file=alertmanager.yaml=/tmp/alertmanager.yaml \
+            -n monitoring
+
+      - name: Deploy kube-prometheus-stack
+        run: |
+          HELM_ARGS=""
+
+          # Grafana password (optional)
+          if [ -n "${{ secrets.GRAFANA_ADMIN_PASSWORD }}" ]; then
+            HELM_ARGS="$HELM_ARGS --set grafana.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }}"
+          fi
+
+          helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --values k8s/monitoring/values.yaml \
+            $HELM_ARGS \
+            --wait \
+            --timeout 10m
+
+      - name: Apply ServiceMonitors
+        run: |
+          kubectl apply -f k8s/monitoring/api-servicemonitor.yaml
+          kubectl apply -f k8s/monitoring/llm-proxy-servicemonitor.yaml
+
+      - name: Apply custom alert rules
+        run: |
+          kubectl apply -f k8s/monitoring/etymograph-alerts.yaml
+
+      - name: Verify deployment
+        run: |
+          echo "=== Pod Status ==="
+          kubectl get pods -n monitoring
+
+          echo ""
+          echo "=== Grafana Access ==="
+          echo "kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring"
+          echo "URL: http://localhost:3000"
+          echo "Username: admin"
