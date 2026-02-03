@@ -71,6 +71,10 @@ route:
     - match:
         alertname: InfoInhibitor
       receiver: 'null'
+    # k3s 내장 컴포넌트 알림 무시 (별도 Pod 없음)
+    - match_re:
+        alertname: 'Kube(Scheduler|ControllerManager)Down'
+      receiver: 'null'
     - match:
         severity: critical
       receiver: 'telegram'
