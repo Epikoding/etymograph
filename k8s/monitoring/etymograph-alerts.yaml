@@ -130,10 +130,11 @@ spec:
 
     - name: etymograph.database
       rules:
-        # PostgreSQL 다운
+        # PostgreSQL 다운 (Ready 상태가 아니거나 Pod가 없음)
         - alert: EtymographPostgresDown
           expr: |
-            kube_pod_status_ready{namespace="etymograph", pod=~"postgres-.*"} == 0
+            kube_pod_status_ready{namespace="etymograph", pod=~"postgres-.*", condition="true"} == 0
+            or absent(kube_pod_status_ready{namespace="etymograph", pod=~"postgres-.*", condition="true"})
           for: 1m
           labels:
             severity: critical
@@ -141,10 +142,11 @@ spec:
             summary: "PostgreSQL이 다운되었습니다"
             description: "EtymoGraph PostgreSQL Pod가 Ready 상태가 아닙니다."
 
-        # Redis 다운
+        # Redis 다운 (Ready 상태가 아니거나 Pod가 없음)
         - alert: EtymographRedisDown
           expr: |
-            kube_pod_status_ready{namespace="etymograph", pod=~"redis-.*"} == 0
+            kube_pod_status_ready{namespace="etymograph", pod=~"redis-.*", condition="true"} == 0
+            or absent(kube_pod_status_ready{namespace="etymograph", pod=~"redis-.*", condition="true"})
           for: 1m
           labels:
             severity: critical
