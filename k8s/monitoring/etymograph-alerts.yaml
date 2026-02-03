@@ -13,7 +13,7 @@ spec:
       rules:
         # API 서버 다운
         - alert: EtymographAPIDown
-          expr: up{job="etymograph-api"} == 0
+          expr: up{job="api"} == 0
           for: 1m
           labels:
             severity: critical
@@ -25,8 +25,8 @@ spec:
         - alert: EtymographAPIHighErrorRate
           expr: |
             (
-              sum(rate(http_requests_total{job="etymograph-api", status=~"5.."}[5m])) /
-              sum(rate(http_requests_total{job="etymograph-api"}[5m]))
+              sum(rate(http_requests_total{job="api", status=~"5.."}[5m])) /
+              sum(rate(http_requests_total{job="api"}[5m]))
             ) > 0.05
           for: 5m
           labels:
@@ -39,7 +39,7 @@ spec:
         - alert: EtymographAPISlowResponse
           expr: |
             histogram_quantile(0.95,
-              sum(rate(http_request_duration_seconds_bucket{job="etymograph-api"}[5m])) by (le)
+              sum(rate(http_request_duration_seconds_bucket{job="api"}[5m])) by (le)
             ) > 2
           for: 10m
           labels:
@@ -52,7 +52,7 @@ spec:
       rules:
         # LLM Proxy 다운
         - alert: EtymographLLMProxyDown
-          expr: up{job="etymograph-llm-proxy"} == 0
+          expr: up{job="llm-proxy"} == 0
           for: 1m
           labels:
             severity: critical
@@ -64,8 +64,8 @@ spec:
         - alert: EtymographLLMHighErrorRate
           expr: |
             (
-              sum(rate(llm_requests_total{job="etymograph-llm-proxy", status=~"5.."}[5m])) /
-              sum(rate(llm_requests_total{job="etymograph-llm-proxy"}[5m]))
+              sum(rate(llm_requests_total{job="llm-proxy", status=~"5.."}[5m])) /
+              sum(rate(llm_requests_total{job="llm-proxy"}[5m]))
             ) > 0.1
           for: 5m
           labels:
@@ -78,7 +78,7 @@ spec:
         - alert: EtymographLLMSlowResponse
           expr: |
             histogram_quantile(0.95,
-              sum(rate(llm_request_duration_seconds_bucket{job="etymograph-llm-proxy"}[5m])) by (le)
+              sum(rate(llm_request_duration_seconds_bucket{job="llm-proxy"}[5m])) by (le)
             ) > 30
           for: 10m
           labels:
