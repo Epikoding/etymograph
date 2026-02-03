@@ -63,6 +63,10 @@ route:
   repeat_interval: 4h
   receiver: 'telegram'
   routes:
+    # Watchdog 알림 무시 (dead man's switch - k3s에서 불필요)
+    - match:
+        alertname: Watchdog
+      receiver: 'null'
     - match:
         severity: critical
       receiver: 'telegram'
@@ -70,6 +74,7 @@ route:
       repeat_interval: 1h
 
 receivers:
+  - name: 'null'
   - name: 'telegram'
     telegram_configs:
       - bot_token: '${TELEGRAM_BOT_TOKEN}'
