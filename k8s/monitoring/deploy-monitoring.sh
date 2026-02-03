@@ -67,6 +67,10 @@ route:
     - match:
         alertname: Watchdog
       receiver: 'null'
+    # InfoInhibitor 알림 무시 (info-level 억제용 - k3s에서 불필요)
+    - match:
+        alertname: InfoInhibitor
+      receiver: 'null'
     - match:
         severity: critical
       receiver: 'telegram'
