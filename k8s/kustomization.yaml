@@ -12,7 +12,7 @@ resources:
   # Applications
   - frontend/deployment.yaml
   - frontend/service.yaml
-  - frontend/hpa.yaml
+  # frontend/hpa.yaml 제거 - 정적 파일 서빙으로 스케일링 불필요
 
   - api/deployment.yaml
   - api/service.yaml
@@ -31,9 +31,6 @@ resources:
 
   - redis/deployment.yaml
   - redis/service.yaml
-
-  - ollama/statefulset.yaml
-  - ollama/service.yaml
 
   # Jobs
   - jobs/history-flush-cronjob.yaml
