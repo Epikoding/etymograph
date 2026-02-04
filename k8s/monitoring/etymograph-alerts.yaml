@@ -128,6 +128,21 @@ spec:
             summary: "Pod CPU 사용량 높음"
             description: "{{ $labels.pod }}의 CPU 사용량이 80%를 초과합니다."
 
+        # CPU Throttling 높음 (75% 이상) - 기본 25% 대신 커스텀 임계값
+        - alert: EtymographCPUThrottlingHigh
+          expr: |
+            (
+              sum(increase(container_cpu_cfs_throttled_periods_total{namespace="etymograph", container!=""}[5m])) by (container, pod, namespace)
+              /
+              sum(increase(container_cpu_cfs_periods_total{namespace="etymograph"}[5m])) by (container, pod, namespace)
+            ) > 0.75
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "CPU Throttling 높음"
+            description: "{{ $labels.pod }}의 {{ $labels.container }} 컨테이너에서 {{ $value | humanizePercentage }} CPU throttling 발생."
+
     - name: etymograph.database
       rules:
         # PostgreSQL 다운 (Ready 상태가 아니거나 Pod가 없음)

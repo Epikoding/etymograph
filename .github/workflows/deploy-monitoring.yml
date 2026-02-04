@@ -58,6 +58,10 @@ jobs:
               - match_re:
                   alertname: 'Kube(Scheduler|ControllerManager)Down'
                 receiver: 'null'
+              # 기본 CPUThrottlingHigh 무시 (커스텀 규칙 75%로 대체)
+              - match:
+                  alertname: CPUThrottlingHigh
+                receiver: 'null'
               - match:
                   severity: critical
                 receiver: 'telegram'
