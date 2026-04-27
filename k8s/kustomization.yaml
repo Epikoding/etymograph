@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: etymograph
+
+resources:
+  # Base
+  - base/namespace.yaml
+  - base/configmap.yaml
+  - base/secrets.yaml
+
+  # Applications
+  - frontend/deployment.yaml
+  - frontend/service.yaml
+  # frontend/hpa.yaml 제거 - 정적 파일 서빙으로 스케일링 불필요
+
+  - api/deployment.yaml
+  - api/service.yaml
+  - api/hpa.yaml
+
+  - llm-proxy/deployment.yaml
+  - llm-proxy/service.yaml
+  - llm-proxy/hpa.yaml
+
+  - rate-limiter/deployment.yaml
+  - rate-limiter/service.yaml
+
+  # Infrastructure
+  - postgresql/statefulset.yaml
+  - postgresql/service.yaml
+
+  - redis/deployment.yaml
+  - redis/service.yaml
+
+  # Jobs
+  - jobs/history-flush-cronjob.yaml
+
+  # Ingress
+  - ingress/traefik.yaml
+
+commonLabels:
+  app.kubernetes.io/name: etymograph
+  app.kubernetes.io/version: "1.0.0"

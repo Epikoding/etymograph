@@ -1,0 +1,22 @@
+# ServiceMonitor for EtymoGraph API
+# Prometheus Operator가 이 리소스를 감지하여 자동으로 메트릭을 수집합니다.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: etymograph-api
+  namespace: monitoring
+  labels:
+    app: api
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: api
+  namespaceSelector:
+    matchNames:
+      - etymograph
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

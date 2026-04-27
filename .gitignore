@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+bin/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+
+# Prisma
+prisma/migrations/
+
+# Docker
+*.tar
+
+# Temporary
+tmp/
+temp/
+
+# MCP tools
+.playwright-mcp/
+.serena/
+
+# Claude Code
+CLAUDE.md
+
+# Kubernetes secrets (use secrets.yaml.example as template)
+k8s/base/secrets.yaml
+k8s/monitoring/alertmanager-secret.yaml
+k8s/monitoring/.env
+etymograph_data.sql
+etymograph_backup.sql
